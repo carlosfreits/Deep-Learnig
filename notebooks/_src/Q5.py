@@ -421,7 +421,7 @@ mostrar_linhas_de_imagens(linhas, "Imagens originais e reconstruídas", textos=t
 # %% [markdown]
 # O que observar:
 # - Os três modelos reconstroem bem o formato de todas as peças. Dá para reconhecer cada uma sem dificuldade.
-# - O que se perde são os detalhes finos. Com 100 números ainda aparece um borrão no lugar do texto do suéter e da estampa da camiseta, e as linhas do casaco ainda são visíveis. Com 50 e 30 números, o texto vira uma faixa escura, a estampa da camiseta some e o casaco fica bem mais borrado.
+# - O que se perde são os detalhes finos. Com 100 números o texto "Lee" do suéter ainda dá para ler, embora borrado, e as linhas do casaco continuam visíveis; a estampa da camiseta já vira um borrão. Com 50 e 30 números o texto vira uma faixa escura, a estampa some de vez e o casaco fica bem mais borrado.
 # - As reconstruções são sempre um pouco mais "lisas" e borradas que as originais. Isso é típico de autoencoders treinados com MSE: quando a rede não tem certeza de um detalhe, ela devolve uma média, que fica borrada.
 # - A bolsa perde a alça fina em todos os tamanhos de latente, e o tênis perde parte dos desenhos laterais.
 

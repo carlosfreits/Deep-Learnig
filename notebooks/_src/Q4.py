@@ -268,8 +268,8 @@ plt.show()
 # %% [markdown]
 # O que observar:
 # - Cada quadradinho é um filtro de 3x3 pixels. As cores mostram quanto o filtro "gosta" de vermelho, verde e azul em cada posição.
-# - Com só 3x3 pixels não dá para ver desenhos grandes. Mas há padrões claros: muitos filtros têm um lado claro e outro escuro (como o filtro da 1ª linha, 3ª coluna, verde em cima e escuro embaixo). Esse tipo de filtro detecta bordas, ou seja, lugares onde a imagem muda de claro para escuro.
-# - Muitos filtros juntam cores opostas, como verde ao lado de roxo ou laranja ao lado de azul. Eles respondem a mudanças de cor, por exemplo um objeto vermelho sobre um fundo azul.
+# - Com só 3x3 pixels não dá para ver desenhos grandes. Mesmo assim, cerca de metade dos filtros tem um lado visivelmente mais claro que o outro. Dois exemplos fáceis de achar na figura: o da 7ª linha, 2ª coluna, com a coluna da esquerda amarelo-esverdeada e a da direita azul-escura, e o da 8ª linha, 7ª coluna, com a linha de cima bem clara e as duas de baixo escuras. Esse tipo de filtro detecta bordas, ou seja, lugares onde a imagem muda de claro para escuro.
+# - Outros filtros juntam cores opostas dentro do mesmo quadradinho, como verde ao lado de roxo ou laranja ao lado de azul. Eles respondem a mudanças de cor, e não de brilho: por exemplo, um objeto vermelho sobre um fundo azul.
 # - Alguns filtros são quase de uma cor só (por exemplo, bem verdes ou bem rosados). Eles respondem à cor da região, e não à forma.
 # - Isso combina com o que se sabe sobre CNNs: a primeira camada aprende coisas simples (bordas, cores e contrastes), e as camadas seguintes juntam essas peças em formas maiores.
 
@@ -499,7 +499,7 @@ grade_de_previsoes(indices_confiantes, imagens_teste, classes_teste, previstos, 
 
 # %% [markdown]
 # O que observar:
-# - Nesses 10 erros a rede tinha 100% de certeza e deu 0% para a classe certa.
+# - Nesses 10 erros a rede deu praticamente toda a probabilidade para a classe errada (100,0% depois do arredondamento para uma casa decimal) e praticamente zero para a classe certa.
 # - Alguns parecem erros de rótulo ou imagens ambíguas: o 1º "gato" é bem parecido com um sapo verde, e os dois "caminhões" são uma van e uma picape, que podem ser chamadas de automóvel.
 # - Outros mostram que a rede usa o fundo como pista: o avião pousado na água virou navio, e o navio com céu atrás virou avião.
 # - O cervo dentro de uma moldura redonda virou automóvel. A moldura não aparece no treino e confundiu a rede.

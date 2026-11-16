@@ -546,7 +546,7 @@ grafico_curvas(historico_mlp, "MLP: erro e acurácia durante o treino", arquivo=
 # - O erro de treino cai o tempo todo, mas o erro de validação para de cair por volta da época 13 e depois começa a subir. É um sinal claro de overfitting: a rede passa a decorar as imagens de treino.
 # - Na acurácia, o treino chega a mais de 80%, enquanto a validação fica parada perto de 58% a 59%.
 # - O early stopping parou o treino na época 37, porque a validação ficou 8 épocas sem melhorar. Voltamos para os pesos da melhor época, a 29 (59,2% na validação).
-# - Mesmo com dropout e BatchNorm, a MLP não consegue passar de cerca de 59%. O limite não é a quantidade de treino, é o tipo de rede.
+# - Mesmo com dropout e BatchNorm, a MLP não passa de cerca de 59%, e trava enquanto o erro de treino ainda está caindo. Para afirmar que o limite é a arquitetura, e não a receita de treino, seria preciso treinar a MLP com a mesma receita da CNN (data augmentation e OneCycle) e mostrar que ela continua parada perto dos 59%. Essa comparação não foi feita aqui.
 
 # %% [markdown]
 # ## Matriz de confusão no teste
@@ -599,7 +599,7 @@ print("Total de pesos treináveis:", sum(p.numel() for p in cnn.parameters()))
 # ## Treinando
 # - Otimizador AdamW com weight decay 0,0005 e agendador OneCycle, com taxa de aprendizado máxima de 0,003.
 # - 40 épocas com lotes de 128 imagens e data augmentation.
-# - Guardamos os pesos das épocas 1, 5 e 40 em arquivos para a Questão 4.
+# - Guardamos em arquivo os pesos das épocas 1, 5 e 40, e também os pesos da melhor época (`cnn_final.pt`). A Questão 4 usa os das épocas 1 e 5 e o `cnn_final.pt`, para comparar o começo, o meio e o fim do treino.
 #
 # Aqui não usamos early stopping: com o OneCycle a taxa de aprendizado só fica bem pequena nas últimas épocas, e é nelas que a rede costuma dar o último salto de acurácia. Mesmo assim, guardamos os pesos da melhor época na validação.
 
@@ -710,5 +710,6 @@ pd.DataFrame({
 # - A MLP chegou a 58,4% de acurácia no teste e a CNN chegou a 92,0%, mesmo tendo cerca de 3 vezes menos pesos (1,1 milhão contra 3,8 milhões).
 # - A MLP recebe a imagem "achatada" em uma lista de 3072 números. Ela perde a noção de quais pixels são vizinhos e precisa aprender cada padrão separadamente para cada posição da imagem. Por isso decora o treino (90%) e generaliza mal.
 # - A CNN olha pequenos pedaços da imagem e usa o mesmo filtro em todas as posições. Assim ela reconhece uma borda, uma textura ou uma orelha em qualquer lugar da foto. Juntando isso com BatchNorm, dropout e data augmentation, o overfitting ficou pequeno (99% no treino e 92% no teste).
+# - Ressalva: a CNN também foi treinada com data augmentation e OneCycle, e a MLP não. Os 33,5 pontos de diferença misturam o efeito da arquitetura com o da receita de treino, então não devem ser lidos como efeito puro da arquitetura. A direção do resultado continua valendo: a MLP satura com o erro de treino ainda caindo, o que é limitação dela e não falta de treino.
 # - Nos dois modelos o erro mais comum é gato com cachorro, que também é difícil para pessoas em imagens de 32x32 pixels.
-# - Para a Q4 salvamos os pesos da CNN nas épocas 1, 5 e no final, para ver o que a rede aprendeu.
+# - Para a Q4 salvamos os pesos da CNN nas épocas 1, 5 e 40 e os da melhor época (a 37), para ver o que a rede aprendeu ao longo do treino.

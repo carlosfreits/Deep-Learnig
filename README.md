@@ -2,6 +2,8 @@
 
 Resolução da lista de exercícios de Aprendizado Profundo (UFPB, Prof. Tiago Maritan). O enunciado está em [`doc/`](doc/).
 
+**Integrantes:** Humberto Nunes de Lira, Wesley Henrique da Silva Vieira e Carlos Vitor Freitas Santos.
+
 Cada questão tem um notebook próprio, que roda sozinho do começo ao fim. Todos seguem a mesma estrutura: funções no início (cada uma com uma explicação), um passo por bloco, cada gráfico seguido de uma análise e uma seção de overfitting.
 
 ## Notebooks
@@ -30,7 +32,7 @@ jupyter notebook notebooks/
 - As bases são baixadas automaticamente para a pasta `data/` na primeira execução.
 - **Rode a Q3 antes da Q4.** A Q3 salva os pesos da CNN em `checkpoints/`, e a Q4 carrega esses pesos.
 - Tempo medido com a RTX 3050: Q1 ~3,5 min, Q2 ~1,5 min, Q3 ~9 min, Q4 ~1 min, Q5 ~4 min.
-- As sementes são fixas e a GPU usa algoritmos determinísticos, então os resultados se repetem a cada execução (conferido rodando de novo a Q3 e a Q5: mesmos pesos e mesmos números).
+- As sementes são fixas em todos os notebooks e, nos que usam convolução (Q3 e Q5), a GPU também é posta em modo determinístico. Os resultados se repetem a cada execução (conferido rodando de novo a Q3 e a Q5: mesmos pesos e mesmos números).
 
 ## Estrutura
 
@@ -38,5 +40,5 @@ jupyter notebook notebooks/
 notebooks/        notebooks das questões (já executados, com as saídas)
 notebooks/_src/   fonte de cada notebook em formato .py (py2nb.py converte para .ipynb)
 figures/          figuras geradas pelos notebooks
-doc/              enunciado e anotações
+doc/              enunciado
 ```
