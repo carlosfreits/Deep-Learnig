@@ -260,6 +260,10 @@ def treinar(modelo, dados, epocas, lr, weight_decay=0.0, paciencia=None, one_cyc
         historico["acc_treino"].append(acc_tr)
         historico["acc_val"].append(acc_val)
 
+        # se o erro virou NaN ou infinito, o treino "explodiu" e não adianta continuar
+        if not np.isfinite(erro_tr) or not np.isfinite(erro_val):
+            raise RuntimeError(f"O erro deixou de ser um número na época {epoca}. Tente uma taxa de aprendizado menor.")
+
         if acc_val > melhor_acc:
             melhor_acc = acc_val
             melhores_pesos = copy.deepcopy(modelo.state_dict())
@@ -278,10 +282,6 @@ def treinar(modelo, dados, epocas, lr, weight_decay=0.0, paciencia=None, one_cyc
             barra.close()
             print(f"Parou na época {epoca}: a acurácia da validação ficou {paciencia} épocas sem melhorar.")
             break
-
-    # se o erro virou NaN (treino "explodiu"), nenhuma época foi guardada
-    if melhores_pesos is None:
-        raise RuntimeError("A acurácia de validação nunca foi calculada direito. Tente uma taxa de aprendizado menor.")
 
     modelo.load_state_dict(melhores_pesos)
     minutos = (time.time() - inicio) / 60
