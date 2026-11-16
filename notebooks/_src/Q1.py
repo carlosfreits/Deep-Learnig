@@ -751,14 +751,17 @@ historico_sem_protecao = treinar(modelo_sem_protecao, loader_treino, loader_val,
 # %%
 grafico_curvas(historico_sem_protecao, "Rede sem dropout, weight decay e early stopping", arquivo="1b_curvas_overfitting.png")
 
+# %% [markdown]
+# Este é o overfitting clássico:
+# - O erro de treino cai até quase zero: a rede decorou a progressão de cada um dos 309 pacientes.
+# - O erro de validação, ao contrário, atinge o menor valor (0,38) na época 4, depois sobe para cerca de 0,65 e fica lá.
+# - A linha pontilhada mostra que a melhor época foi a 4, mas essa rede usa os pesos da época 1000.
+
 # %%
 tabela_overfitting(modelo_sem_protecao, conjuntos_b, normalizador_X, normalizador_y).round(2)
 
 # %% [markdown]
-# Este é o overfitting clássico:
-# - O erro de treino vai quase a zero (RMSE de 0,17): a rede decorou a progressão de cada um dos 309 pacientes.
-# - O erro de validação, ao contrário, sobe de 0,38 na época 4 para cerca de 0,65 e fica lá.
-# - No teste o RMSE vai para 71,4 (contra 56,0 da nossa rede) e o R² cai para 0,10. Ou seja, a rede ficou pior que a nossa justamente nos pacientes que nunca viu.
+# Nos números, o RMSE de treino é só 0,17, mas no teste ele vai para 71,4 (contra 56,0 da nossa rede) e o R² cai para 0,10. Ou seja, a rede ficou pior que a nossa justamente nos pacientes que nunca viu.
 #
 # Isso mostra que as proteções que usamos (rede menor, dropout, weight decay e early stopping) estão fazendo diferença.
 
