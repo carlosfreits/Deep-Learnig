@@ -128,9 +128,10 @@ class Autoencoder(nn.Module):
 # Passa uma vez por todas as imagens, em lotes, e devolve o erro médio de reconstrução (MSE: a média do quadrado da diferença entre os pixels originais e os reconstruídos).
 # - Com otimizador, a rede aprende.
 # - Se `com_ruido` for verdadeiro, a entrada da rede é a imagem com ruído e o alvo continua sendo a imagem limpa. Um ruído novo é sorteado a cada lote, então a rede nunca vê o mesmo ruído duas vezes.
+# - Se `entradas` for passado, a rede recebe essas imagens já prontas (usado na validação, com um ruído fixo).
 
 # %%
-def rodar_epoca(modelo, imagens, tamanho_lote, otimizador=None, com_ruido=False):
+def rodar_epoca(modelo, imagens, tamanho_lote, otimizador=None, com_ruido=False, entradas=None):
     treinando = otimizador is not None
     modelo.train(treinando)
     funcao_erro = nn.MSELoss()
@@ -138,8 +139,12 @@ def rodar_epoca(modelo, imagens, tamanho_lote, otimizador=None, com_ruido=False)
     erro_total = 0.0
     with torch.set_grad_enabled(treinando):
         for inicio in range(0, len(imagens), tamanho_lote):
-            alvo = imagens[ordem[inicio:inicio + tamanho_lote]]
-            entrada = adicionar_ruido(alvo) if com_ruido else alvo
+            lote = ordem[inicio:inicio + tamanho_lote]
+            alvo = imagens[lote]
+            if entradas is not None:
+                entrada = entradas[lote]
+            else:
+                entrada = adicionar_ruido(alvo) if com_ruido else alvo
             erro = funcao_erro(modelo(entrada), alvo)
             if treinando:
                 otimizador.zero_grad()
@@ -151,6 +156,8 @@ def rodar_epoca(modelo, imagens, tamanho_lote, otimizador=None, com_ruido=False)
 # %% [markdown]
 # ### treinar
 # Treina o autoencoder com o otimizador Adam. A cada época mede o erro no treino e na validação e guarda os pesos da época com o menor erro de validação. Se a validação ficar `paciencia` épocas sem melhorar, o treino para.
+#
+# No treino com ruído, o ruído da validação é sorteado uma vez só, antes de começar. Assim todas as épocas são comparadas nas mesmas imagens ruidosas, e a escolha da melhor época não depende da sorte do sorteio.
 
 # %%
 def treinar(modelo, imagens_treino, imagens_val, epocas, lr=1e-3, paciencia=5, com_ruido=False, nome="Treinando"):
@@ -159,11 +166,12 @@ def treinar(modelo, imagens_treino, imagens_val, epocas, lr=1e-3, paciencia=5, c
     menor_erro = float("inf")
     melhores_pesos = None
     epocas_sem_melhorar = 0
+    entradas_val = adicionar_ruido(imagens_val) if com_ruido else None
 
     barra = tqdm(range(1, epocas + 1), desc=nome, unit="época", ncols=110, mininterval=2)
     for epoca in barra:
         erro_treino = rodar_epoca(modelo, imagens_treino, 256, otimizador, com_ruido)
-        erro_val = rodar_epoca(modelo, imagens_val, 1000, com_ruido=com_ruido)
+        erro_val = rodar_epoca(modelo, imagens_val, 1000, entradas=entradas_val)
         historico["treino"].append(erro_treino)
         historico["val"].append(erro_val)
 
@@ -212,7 +220,8 @@ def erro_por_imagem(originais, reconstruidas):
 
 
 def psnr(originais, reconstruidas):
-    return 10 * np.log10(1.0 / erro_por_imagem(originais, reconstruidas))
+    # o np.maximum evita dividir por zero se a reconstrução for perfeita
+    return 10 * np.log10(1.0 / np.maximum(erro_por_imagem(originais, reconstruidas), 1e-10))
 
 # %% [markdown]
 # ### grafico_curvas
@@ -498,7 +507,7 @@ mostrar_linhas_de_imagens(
 # O que observar:
 # - As imagens com ruído (linha do meio) ficam bem difíceis de entender. Na sandália e na bota, quase não dá para ver a peça.
 # - A rede remove praticamente todo o ruído: o fundo volta a ficar preto e liso, e todas as peças voltam a ser reconhecíveis.
-# - O erro de cada imagem cai de cerca de 0,05 para algo entre 0,0027 e 0,017, ou seja, de 3 a 18 vezes menor.
+# - O erro de cada imagem cai de cerca de 0,05 para algo entre 0,0025 e 0,017, ou seja, de 3 a 19 vezes menor.
 # - Como no item a, os detalhes finos se perdem: o texto do suéter vira uma faixa, a estampa da camiseta some e a alça da bolsa desaparece. O ruído escondeu esses detalhes e a rede preenche com o que é mais comum para aquele tipo de peça.
 
 # %% [markdown]
@@ -516,9 +525,9 @@ tabela_ruido.loc["média"] = tabela_ruido.mean()
 tabela_ruido.round(4)
 
 # %% [markdown]
-# Na média das 10 imagens, o MSE cai de 0,052 (com ruído) para 0,0066 (depois da rede), cerca de 8 vezes menor. O PSNR sobe de 12,9 dB para 22,4 dB, uma melhora de cerca de 9,5 dB.
+# Na média das 10 imagens, o MSE cai de 0,052 (com ruído) para 0,0063 (depois da rede), cerca de 8 vezes menor. O PSNR sobe de 12,9 dB para 22,7 dB, uma melhora de quase 10 dB.
 #
-# A melhor reconstrução foi a do vestido (25,7 dB) e a pior foi a do suéter (17,6 dB), de novo por causa do texto escrito nele.
+# A melhor reconstrução foi a do vestido (26,0 dB) e a pior foi a do suéter (17,8 dB), de novo por causa do texto escrito nele.
 
 # %% [markdown]
 # ## Verificando overfitting e o teste inteiro
@@ -551,5 +560,5 @@ pd.DataFrame(linhas_ruido).T.round(5)
 # - Não houve overfitting: treino, validação e teste têm praticamente o mesmo erro.
 #
 # Item b
-# - O autoencoder treinado com imagens ruidosas aprendeu a remover o ruído. O MSE das 10 imagens caiu de 0,052 para 0,0066 e o PSNR subiu de 12,9 dB para 22,4 dB.
+# - O autoencoder treinado com imagens ruidosas aprendeu a remover o ruído. O MSE das 10 imagens caiu de 0,052 para 0,0063 e o PSNR subiu de 12,9 dB para 22,7 dB.
 # - As peças voltam a ficar reconhecíveis e o fundo fica limpo. Os detalhes finos escondidos pelo ruído não são recuperados: a rede os substitui pelo que é mais comum para aquele tipo de peça.
