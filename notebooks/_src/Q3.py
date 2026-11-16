@@ -111,6 +111,14 @@ def aumentar_dados(x):
     return x.gather(3, colunas)  # escolhe 32 colunas a partir do deslocamento
 
 # %% [markdown]
+# ### para_exibir
+# Desfaz a normalização de uma imagem (volta para as cores originais, com pixels entre 0 e 1) e muda a ordem para (altura, largura, cor), que é o formato que o matplotlib usa para desenhar.
+
+# %%
+def para_exibir(x, media, desvio):
+    return (x * desvio.view(3, 1, 1) + media.view(3, 1, 1)).clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+
+# %% [markdown]
 # ### lotes
 # Divide as imagens em lotes (pedaços) de um tamanho fixo. No treino os lotes são sorteados de novo a cada época.
 
@@ -483,14 +491,10 @@ fixar_semente()
 exemplos = X_treino[:6]
 versoes = [exemplos] + [aumentar_dados(exemplos) for _ in range(5)]
 
-def para_exibir(x):
-    # desfaz a normalização para mostrar a imagem com as cores certas
-    return (x * desvio.view(3, 1, 1) + media.view(3, 1, 1)).clamp(0, 1).permute(1, 2, 0).cpu().numpy()
-
 fig, eixos = plt.subplots(6, 6, figsize=(8, 8))
 for linha in range(6):
     for coluna in range(6):
-        eixos[linha, coluna].imshow(para_exibir(versoes[coluna][linha]))
+        eixos[linha, coluna].imshow(para_exibir(versoes[coluna][linha], media, desvio))
         eixos[linha, coluna].axis("off")
 eixos[0, 0].set_title("original")
 for coluna in range(1, 6):
@@ -616,7 +620,7 @@ grafico_curvas(historico_cnn, "CNN: erro e acurácia durante o treino", arquivo=
 # O que observar:
 # - Treino e validação caem juntos durante quase todo o treino. A curva de validação oscila bastante nas primeiras 15 épocas, por causa da taxa de aprendizado alta no início do OneCycle, e depois fica estável.
 # - No final a taxa de aprendizado fica bem pequena, e as duas curvas se estabilizam. A melhor época foi a 37, com 92,8% de acurácia na validação.
-# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 93%), mas o erro de validação não sobe em nenhum momento. Ou seja, a rede aprende mais do que decora.
+# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 93%), mas o erro de validação não tem tendência de subir no final: depois das oscilações do começo, ele só cai ou fica estável. Ou seja, a rede aprende mais do que decora.
 # - O treino é feito com data augmentation (imagens espelhadas e deslocadas), então a curva de treino é calculada em imagens "mais difíceis" que as de validação.
 
 # %% [markdown]
