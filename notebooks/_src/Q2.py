@@ -489,6 +489,8 @@ vif.round(1)
 # A densidade tem VIF de 20,7, bem acima de 10. Isso quer dizer que ela pode ser calculada quase perfeitamente a partir dos outros atributos. Faz sentido físico: a densidade do vinho depende principalmente de quanto álcool (mais leve que a água) e quanto açúcar (mais pesado) ele tem.
 #
 # Por isso removemos a densidade. Ela não traz informação nova e só repete o que o álcool e o açúcar já dizem.
+#
+# Um detalhe: o VIF foi calculado com a base inteira, antes de separar o teste. Como ele só olha a relação entre os atributos (e não a nota), e a densidade está muito acima do limite, a decisão seria a mesma usando só o treino.
 
 # %%
 vinhos = vinhos.drop(columns="density")
@@ -710,7 +712,9 @@ print(classification_report(y_teste, previstos_teste, target_names=CLASSES, digi
 # - Acurácia de 72,7%: a rede acerta quase 3 de cada 4 vinhos.
 # - F1 macro de 0,531. A classe média tem F1 de 0,82, a alta 0,49 e a baixa só 0,29.
 # - A precisão da classe baixa é de 0,25: de cada 4 vinhos que a rede chama de baixo, só 1 realmente é. Isso acontece porque, para encontrar vinhos baixos, a rede acaba marcando também vinhos médios parecidos com eles, e como existem muito mais médios do que baixos, esses alarmes falsos são maioria.
-# - O F1 macro do teste (0,531) ficou abaixo do da validação (0,603). Com só 36 vinhos baixos no teste, poucos acertos a mais ou a menos mudam muito o resultado, então parte dessa diferença é sorte do sorteio.
+# - O F1 macro do teste (0,531) ficou abaixo do da validação (0,603). Isso tem dois motivos:
+#   - a validação foi usada para escolher a melhor época e a melhor estratégia de balanceamento. Escolhendo pelo melhor resultado na validação, esse resultado tende a ficar um pouco acima do real. O teste, que não participou de nenhuma escolha, mostra o valor mais honesto;
+#   - com só 36 vinhos baixos no teste, poucos acertos a mais ou a menos mudam muito o F1.
 
 # %% [markdown]
 # ---
@@ -730,7 +734,7 @@ pd.DataFrame(tabela_overfitting).T.round(3)
 # %% [markdown]
 # O F1 macro é 0,634 no treino, 0,603 na validação e 0,531 no teste. A acurácia é 78,3%, 77,8% e 72,7%.
 #
-# Treino e validação estão bem próximos, então a rede não decorou o treino: o early stopping parou antes disso, como vimos nas curvas. A queda maior no teste vem principalmente da classe baixa, que tem poucos exemplos (36) e por isso varia muito de um sorteio para outro.
+# Treino e validação estão bem próximos, então a rede não decorou o treino: o early stopping parou antes disso, como vimos nas curvas. A queda maior no teste não é overfitting no treino. Ela vem de a validação ter sido usada para escolher a época e a estratégia (o que deixa o resultado da validação um pouco otimista) e da classe baixa, que tem poucos exemplos (36) e por isso varia muito de um sorteio para outro.
 
 # %% [markdown]
 # ## Comparação com outro modelo
