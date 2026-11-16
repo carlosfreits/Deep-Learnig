@@ -29,8 +29,8 @@ jupyter notebook notebooks/
 
 - As bases são baixadas automaticamente para a pasta `data/` na primeira execução.
 - **Rode a Q3 antes da Q4.** A Q3 salva os pesos da CNN em `checkpoints/`, e a Q4 carrega esses pesos.
-- Tempo aproximado com GPU: Q1 ~10 min, Q2 ~5 min, Q3 ~10 min, Q4 ~1 min, Q5 ~4 min.
-- As sementes são fixas, então os resultados se repetem a cada execução.
+- Tempo medido com a RTX 3050: Q1 ~3,5 min, Q2 ~1,5 min, Q3 ~9 min, Q4 ~1 min, Q5 ~4 min.
+- As sementes são fixas e a GPU usa algoritmos determinísticos, então os resultados se repetem a cada execução (conferido rodando de novo a Q3 e a Q5: mesmos pesos e mesmos números).
 
 ## Estrutura
 
