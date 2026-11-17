@@ -31,7 +31,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix,
                              f1_score, precision_score, recall_score)
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight
 from torch import nn
@@ -182,10 +182,12 @@ def rodar_epoca(modelo, loader, funcao_erro, otimizador=None):
 # Se o F1 da validação ficar `paciencia` épocas sem melhorar, o treino para (early stopping).
 #
 # `pesos_classes` é usado em uma das estratégias de balanceamento: o erro de cada classe é multiplicado por um peso, para que errar uma classe rara "custe" mais.
+#
+# `mostrar=False` desliga a barra de progresso e as mensagens (usado na validação cruzada, que treina muitas redes).
 
 # %%
 def treinar(modelo, loader_treino, loader_val, epocas, lr=1e-3, weight_decay=0.0,
-            paciencia=None, pesos_classes=None, nome="Treinando"):
+            paciencia=None, pesos_classes=None, nome="Treinando", mostrar=True):
     if pesos_classes is not None:
         pesos_classes = torch.tensor(pesos_classes, dtype=torch.float32, device=device)
     funcao_erro = nn.CrossEntropyLoss(weight=pesos_classes)
@@ -196,7 +198,7 @@ def treinar(modelo, loader_treino, loader_val, epocas, lr=1e-3, weight_decay=0.0
     melhores_pesos = None
     epocas_sem_melhorar = 0
 
-    barra = tqdm(range(1, epocas + 1), desc=nome, unit="época", ncols=110, mininterval=2)
+    barra = tqdm(range(1, epocas + 1), desc=nome, unit="época", ncols=110, mininterval=2, disable=not mostrar)
     for epoca in barra:
         erro_treino, reais_tr, previstos_tr = rodar_epoca(modelo, loader_treino, funcao_erro, otimizador)
         erro_val, reais_val, previstos_val = rodar_epoca(modelo, loader_val, funcao_erro)
@@ -221,7 +223,8 @@ def treinar(modelo, loader_treino, loader_val, epocas, lr=1e-3, weight_decay=0.0
 
         if paciencia is not None and epocas_sem_melhorar >= paciencia:
             barra.close()
-            print(f"Parou na época {epoca}: o F1 da validação ficou {paciencia} épocas sem melhorar.")
+            if mostrar:
+                print(f"Parou na época {epoca}: o F1 da validação ficou {paciencia} épocas sem melhorar.")
             break
 
     # se o erro virou NaN (treino "explodiu"), nenhuma época foi guardada
@@ -229,7 +232,8 @@ def treinar(modelo, loader_treino, loader_val, epocas, lr=1e-3, weight_decay=0.0
         raise RuntimeError("O F1 de validação nunca foi calculado direito. Tente uma taxa de aprendizado menor.")
 
     modelo.load_state_dict(melhores_pesos)
-    print(f"Melhor época: {historico['melhor_epoca']} (F1 macro na validação = {melhor_f1:.3f})")
+    if mostrar:
+        print(f"Melhor época: {historico['melhor_epoca']} (F1 macro na validação = {melhor_f1:.3f})")
     return historico
 
 # %% [markdown]
@@ -250,7 +254,7 @@ def prever(modelo, X):
 # - acurácia: porcentagem de vinhos classificados corretamente;
 # - precisão: dos vinhos que a rede disse ser de uma classe, quantos realmente são;
 # - recall: dos vinhos que são de uma classe, quantos a rede encontrou;
-# - F1: média entre precisão e recall (só é alto se as duas forem altas).
+# - F1: média harmônica entre precisão e recall. Diferente da média comum, ela fica perto do menor dos dois valores, então só é alta se as duas forem altas.
 #
 # Precisão, recall e F1 são calculados para cada classe e depois tiramos a média simples das três (média "macro"), para que a classe rara pese o mesmo que a classe comum.
 
@@ -325,12 +329,41 @@ def criar_modelo(entradas):
     return MLP(entradas=entradas, camadas=[128, 64], dropout=0.3).to(device)
 
 
-def treinar_modelo(modelo, X_treino, y_treino, X_val, y_val, pesos_classes=None, nome="Treinando"):
+def treinar_modelo(modelo, X_treino, y_treino, X_val, y_val, pesos_classes=None, nome="Treinando", mostrar=True):
     fixar_semente()
     loader_treino = criar_loader(X_treino, y_treino, tamanho_lote=64, embaralhar=True)
     loader_val = criar_loader(X_val, y_val, tamanho_lote=512, embaralhar=False)
     return treinar(modelo, loader_treino, loader_val, epocas=300, lr=1e-3, weight_decay=1e-4,
-                   paciencia=40, pesos_classes=pesos_classes, nome=nome)
+                   paciencia=40, pesos_classes=pesos_classes, nome=nome, mostrar=mostrar)
+
+# %% [markdown]
+# ### validacao_cruzada
+# Com uma única divisão dos dados, a comparação entre estratégias depende de quais vinhos caíram na validação (são só 35 de qualidade baixa). Esta função repete a comparação várias vezes: divide os dados em 5 partes e, a cada vez, treina com 4 delas e mede o F1 macro na parte que ficou de fora. Devolve os 5 valores de F1.
+#
+# Em cada repetição o normalizador, os pesos das classes e o SMOTE são calculados só com as 4 partes de treino. A parte que ficou de fora também é usada para o early stopping, como a validação no treino principal. Por isso os valores saem um pouco otimistas, mas isso vale igualmente para todas as estratégias, então a comparação entre elas é justa.
+
+# %%
+def validacao_cruzada(X, y, estrategia, nome):
+    partes = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+    lista_f1 = []
+    for indices_tr, indices_va in tqdm(list(partes.split(X, y)), desc=nome, unit="parte", ncols=110):
+        normalizador_parte = StandardScaler().fit(X[indices_tr])
+        X_tr, y_tr = normalizador_parte.transform(X[indices_tr]), y[indices_tr]
+        X_va, y_va = normalizador_parte.transform(X[indices_va]), y[indices_va]
+
+        pesos_parte = None
+        if estrategia in ("pesos nas classes", "pesos suavizados"):
+            pesos_parte = compute_class_weight("balanced", classes=np.array([0, 1, 2]), y=y_tr)
+            if estrategia == "pesos suavizados":
+                pesos_parte = np.sqrt(pesos_parte)
+        if estrategia == "SMOTE":
+            X_tr, y_tr = SMOTE(random_state=42).fit_resample(X_tr, y_tr)
+
+        modelo = criar_modelo(X_tr.shape[1])
+        treinar_modelo(modelo, X_tr, y_tr, X_va, y_va, pesos_classes=pesos_parte, mostrar=False)
+        previstos, _ = prever(modelo, X_va)
+        lista_f1.append(f1_score(y_va, previstos, average="macro"))
+    return lista_f1
 
 # %% [markdown]
 # ---
@@ -490,9 +523,12 @@ vif.round(1)
 #
 # Por isso removemos a densidade. Ela não traz informação nova e só repete o que o álcool e o açúcar já dizem.
 #
+# Um cuidado: o VIF vem da regressão linear, onde colunas redundantes atrapalham de verdade. Uma MLP costuma conviver bem com isso. Então, mais adiante (na seção de balanceamento), conferimos se remover a densidade muda o resultado da rede.
+#
 # Um detalhe: o VIF foi calculado com a base inteira, antes de separar o teste. Como ele só olha a relação entre os atributos (e não a nota), e a densidade está muito acima do limite, a decisão seria a mesma usando só o treino.
 
 # %%
+densidade = vinhos["density"].values  # guardada para um teste mais adiante
 vinhos = vinhos.drop(columns="density")
 print("VIF depois de remover a densidade:")
 calcular_vif(vinhos.drop(columns=["quality", "classe"])).round(1)
@@ -522,8 +558,12 @@ print("Atributos usados:", nomes_atributos)
 # Separamos 70% para treino, 15% para validação e 15% para teste. A divisão é estratificada: cada parte fica com a mesma proporção de vinhos baixos, médios e altos. Sem isso, a classe baixa, que é rara, poderia ficar com pouquíssimos exemplos na validação ou no teste.
 
 # %%
-X_treino, X_resto, y_treino, y_resto = train_test_split(X, y, test_size=0.30, stratify=y, random_state=42)
-X_val, X_teste, y_val, y_teste = train_test_split(X_resto, y_resto, test_size=0.50, stratify=y_resto, random_state=42)
+indices = np.arange(len(X))
+indices_treino, indices_resto = train_test_split(indices, test_size=0.30, stratify=y, random_state=42)
+indices_val, indices_teste = train_test_split(indices_resto, test_size=0.50, stratify=y[indices_resto], random_state=42)
+
+X_treino, X_val, X_teste = X[indices_treino], X[indices_val], X[indices_teste]
+y_treino, y_val, y_teste = y[indices_treino], y[indices_val], y[indices_teste]
 
 pd.DataFrame({
     "treino": np.bincount(y_treino),
@@ -601,7 +641,7 @@ historico_smote = treinar_modelo(modelo_smote, X_treino_smote, y_treino_smote, X
 
 # %% [markdown]
 # ## Comparando as quatro estratégias na validação
-# Escolhemos a estratégia olhando só a validação. O teste fica guardado para o final.
+# Primeiro olhamos as quatro redes na validação. O teste fica guardado para o final.
 
 # %%
 estrategias = {"sem balanceamento": modelo_sem, "pesos nas classes": modelo_pesos,
@@ -635,10 +675,61 @@ plt.show()
 
 # %% [markdown]
 # O que observar:
-# - Sem balanceamento a rede tem a maior acurácia (79,8%), mas só encontra 14% dos vinhos de qualidade baixa. Ela quase sempre responde "média", exatamente o problema que esperávamos. Então o balanceamento é necessário.
-# - Com os pesos completos e com o SMOTE acontece o contrário: a rede passa a encontrar quase metade dos vinhos baixos e quase 90% dos altos, mas começa a errar muitos vinhos médios (recall de 64% e 63%), e a acurácia cai para perto de 67%.
-# - Os pesos suavizados ficam no meio-termo: encontram 37% dos baixos, 85% dos médios e 59% dos altos. É a estratégia com o maior F1 macro (0,603), então é a que escolhemos.
+# - Sem balanceamento a rede tem a maior acurácia (80,5%), mas só encontra 14% dos vinhos de qualidade baixa. Ela quase sempre responde "média", exatamente o problema que esperávamos. Então o balanceamento é necessário.
+# - Com os pesos completos e com o SMOTE acontece o contrário: a rede passa a encontrar mais de 40% dos vinhos baixos e mais de 80% dos altos, mas começa a errar muitos vinhos médios (recall de 64% e 66%), e a acurácia cai para perto de 68%.
+# - Os pesos suavizados ficam no meio-termo: encontram 37% dos baixos, 85% dos médios e 59% dos altos, e têm o maior F1 macro (0,603).
 # - Não existe estratégia que ganhe em tudo: sempre que a rede passa a encontrar mais vinhos raros, ela erra mais vinhos médios. A escolha depende do que importa mais. Aqui usamos o F1 macro, que trata as três classes como igualmente importantes.
+# - As diferenças de F1 são pequenas (de 0,540 a 0,603) para uma validação com só 35 vinhos baixos. Antes de escolher, conferimos se a ordem se mantém com outras divisões dos dados.
+
+# %% [markdown]
+# ## Conferindo a escolha com validação cruzada
+# Na tabela acima os valores de F1 macro das quatro estratégias são próximos, e a validação tem só 35 vinhos de qualidade baixa: acertar ou errar 2 ou 3 deles já muda a ordem. Para não escolher a estratégia "por sorte", repetimos a comparação com validação cruzada de 5 partes (função `validacao_cruzada`), usando os vinhos de treino e de validação juntos. O teste continua de fora.
+
+# %%
+X_desenvolvimento = np.concatenate([X_treino, X_val])
+y_desenvolvimento = np.concatenate([y_treino, y_val])
+
+f1_cruzada = {nome: validacao_cruzada(X_desenvolvimento, y_desenvolvimento, nome, nome) for nome in estrategias}
+
+# %%
+tabela_cruzada = pd.DataFrame(f1_cruzada, index=[f"parte {i}" for i in range(1, 6)]).T
+tabela_cruzada["média"] = tabela_cruzada.mean(axis=1)
+tabela_cruzada["desvio"] = tabela_cruzada.drop(columns="média").std(axis=1)
+tabela_cruzada.round(3)
+
+# %% [markdown]
+# O que observar:
+# - Os pesos suavizados continuam na frente: F1 macro médio de 0,595, contra 0,559 do SMOTE, 0,546 dos pesos completos e 0,540 sem balanceamento.
+# - Mais importante que a média: os pesos suavizados têm o maior F1 em cada uma das 5 partes. A vantagem não depende de uma divisão específica dos dados.
+# - A variação de uma parte para outra é de cerca de 0,03 em uma mesma estratégia. Então a vantagem dos pesos suavizados sobre a segunda colocada (0,036) é real, mas não é grande. Já as outras três estratégias ficam a menos de 0,02 uma da outra, dentro dessa variação: entre elas não dá para dizer qual é melhor.
+# - O valor de 0,603 que vimos na validação única fica dentro do que a validação cruzada mostra (de 0,561 a 0,628).
+#
+# Escolhemos então a estratégia com o maior F1 macro médio na validação cruzada: os pesos suavizados.
+
+# %% [markdown]
+# ## A densidade faz falta?
+# Removemos a densidade por causa do VIF. Para conferir se isso prejudica a rede, repetimos a validação cruzada da estratégia escolhida colocando a densidade de volta como 12º atributo.
+
+# %%
+melhor_estrategia = tabela_cruzada["média"].idxmax()
+print("Estratégia com o maior F1 macro médio:", melhor_estrategia)
+
+X_com_densidade = np.column_stack([X, densidade])
+X_desenvolvimento_cd = np.concatenate([X_com_densidade[indices_treino], X_com_densidade[indices_val]])
+f1_com_densidade = validacao_cruzada(X_desenvolvimento_cd, y_desenvolvimento, melhor_estrategia, "com densidade")
+
+tabela_densidade = pd.DataFrame({
+    "sem densidade (11 atributos)": f1_cruzada[melhor_estrategia],
+    "com densidade (12 atributos)": f1_com_densidade,
+}, index=[f"parte {i}" for i in range(1, 6)]).T
+tabela_densidade["média"] = tabela_densidade.mean(axis=1)
+tabela_densidade["desvio"] = tabela_densidade.drop(columns="média").std(axis=1)
+tabela_densidade.round(3)
+
+# %% [markdown]
+# Com a densidade o F1 macro médio é 0,604, e sem ela é 0,595. A diferença (0,009) é bem menor que a variação entre as partes (cerca de 0,03), e em uma das cinco partes o resultado sem a densidade é melhor.
+#
+# Então remover a densidade não prejudicou a rede de forma que dê para medir. Também não ajudou: para uma MLP, a redundância apontada pelo VIF não era um problema. Mantemos a remoção porque ela deixa o modelo mais simples (um atributo a menos) sem perda clara, mas a decisão contrária também seria defensável.
 
 # %% [markdown]
 # ---
@@ -648,7 +739,6 @@ plt.show()
 # ## Arquitetura da rede
 
 # %%
-melhor_estrategia = tabela_comparacao["F1 (macro)"].idxmax()
 modelo_final = estrategias[melhor_estrategia]
 historicos = {"sem balanceamento": historico_sem, "pesos nas classes": historico_pesos,
               "pesos suavizados": historico_suave, "SMOTE": historico_smote}
@@ -679,6 +769,7 @@ grafico_curvas(historico_final, f"Treino com a estratégia: {melhor_estrategia}"
 # - No gráfico da direita, o F1 da validação para de melhorar por volta da época 30 (0,603), enquanto o F1 de treino continua subindo até cerca de 0,65.
 # - O early stopping guardou os pesos da época 30 e parou o treino na época 70. Assim a rede final é a de antes do overfitting.
 # - As curvas da validação são mais "tremidas" porque a classe baixa tem só 35 vinhos na validação: acertar ou errar 2 ou 3 deles já muda bastante o F1.
+# - Um efeito disso: a época 30 é um pico de uma curva tremida. Escolher o ponto mais alto de uma curva assim tende a dar um valor um pouco acima do que a rede realmente vale. É um dos motivos de o F1 no teste sair menor, como veremos adiante.
 
 # %% [markdown]
 # ## Matriz de confusão no teste
@@ -713,7 +804,7 @@ print(classification_report(y_teste, previstos_teste, target_names=CLASSES, digi
 # - F1 macro de 0,531. A classe média tem F1 de 0,82, a alta 0,49 e a baixa só 0,29.
 # - A precisão da classe baixa é de 0,25: de cada 4 vinhos que a rede chama de baixo, só 1 realmente é. Isso acontece porque, para encontrar vinhos baixos, a rede acaba marcando também vinhos médios parecidos com eles, e como existem muito mais médios do que baixos, esses alarmes falsos são maioria.
 # - O F1 macro do teste (0,531) ficou abaixo do da validação (0,603). Isso tem dois motivos:
-#   - a validação foi usada para escolher a melhor época e a melhor estratégia de balanceamento. Escolhendo pelo melhor resultado na validação, esse resultado tende a ficar um pouco acima do real. O teste, que não participou de nenhuma escolha, mostra o valor mais honesto;
+#   - a validação foi usada para escolher a melhor época, e os vinhos dela também entraram na validação cruzada que escolheu a estratégia de balanceamento. Escolhendo pelo melhor resultado na validação, esse resultado tende a ficar um pouco acima do real. O teste, que não participou de nenhuma escolha, mostra o valor mais honesto;
 #   - com só 36 vinhos baixos no teste, poucos acertos a mais ou a menos mudam muito o F1.
 
 # %% [markdown]
@@ -734,7 +825,7 @@ pd.DataFrame(tabela_overfitting).T.round(3)
 # %% [markdown]
 # O F1 macro é 0,634 no treino, 0,603 na validação e 0,531 no teste. A acurácia é 78,3%, 77,8% e 72,7%.
 #
-# Treino e validação estão bem próximos, então a rede não decorou o treino: o early stopping parou antes disso, como vimos nas curvas. A queda maior no teste não é overfitting no treino. Ela vem de a validação ter sido usada para escolher a época e a estratégia (o que deixa o resultado da validação um pouco otimista) e da classe baixa, que tem poucos exemplos (36) e por isso varia muito de um sorteio para outro.
+# Treino e validação estão bem próximos, então a rede não decorou o treino: o early stopping parou antes disso, como vimos nas curvas. A queda maior no teste não é overfitting no treino. Ela vem de a validação ter sido usada para escolher a época e de ter participado da escolha da estratégia (o que deixa o resultado da validação um pouco otimista) e da classe baixa, que tem poucos exemplos (36) e por isso varia muito de um sorteio para outro.
 
 # %% [markdown]
 # ## Comparação com outro modelo
@@ -759,12 +850,12 @@ pd.DataFrame({
 #
 # Análise e pré-processamento
 # - A base não tem valores ausentes, mas tinha 1177 vinhos repetidos, que removemos.
-# - A densidade era redundante (VIF de 20,7, quase uma combinação de álcool e açúcar) e foi removida. Os outros atributos foram mantidos e normalizados.
+# - A densidade era redundante (VIF de 20,7, quase uma combinação de álcool e açúcar) e foi removida. Conferimos com validação cruzada que isso não prejudica a rede: o F1 macro fica em 0,595 sem ela e 0,604 com ela, diferença menor que a variação entre as repetições. Os outros atributos foram mantidos e normalizados.
 # - As classes são muito desbalanceadas (4% baixa, 77% média, 19% alta), então usamos divisão estratificada e o F1 macro como métrica principal.
 #
 # Balanceamento
 # - Sem balanceamento, a rede quase nunca reconhece vinhos ruins (recall de 14%). Então o balanceamento é necessário.
-# - Testamos pesos nas classes, pesos suavizados e SMOTE. A melhor na validação foi a de pesos suavizados, que equilibra melhor os acertos nas três classes.
+# - Testamos pesos nas classes, pesos suavizados e SMOTE. Os pesos suavizados foram os melhores na validação e também na validação cruzada, em todas as 5 partes (F1 macro médio de 0,595 contra 0,559 da segunda colocada).
 #
 # Resultado
 # - Rede com 11 entradas, camadas de 128 e 64 neurônios (ReLU e dropout de 30%) e 3 saídas.
@@ -772,3 +863,8 @@ pd.DataFrame({
 # - A rede reconhece bem os vinhos médios (81%), metade dos altos e um terço dos baixos. Os erros acontecem quase sempre entre classes vizinhas.
 # - Não houve overfitting relevante. O early stopping parou o treino quando a validação começou a piorar.
 # - Uma Random Forest chegou praticamente ao mesmo resultado, o que mostra que o limite está nos dados: só com a química do vinho não dá para separar bem as notas, que também dependem do gosto de quem avaliou.
+#
+# O que ficou de fora
+# - As três classes têm uma ordem (baixa, média, alta), e quase todos os erros são entre vizinhas. Tratamos o problema como uma classificação comum, que ignora essa ordem. Um modelo que a levasse em conta (por exemplo, prevendo a nota e depois cortando em faixas) é um caminho natural para testar.
+# - O número do teste vem de uma única divisão, com só 36 vinhos de qualidade baixa. Ele deve ser lido com essa margem de incerteza.
+
