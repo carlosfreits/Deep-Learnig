@@ -212,7 +212,7 @@ def reconstruir(modelo, imagens):
 # %% [markdown]
 # ### erro_por_imagem e psnr
 # - `erro_por_imagem`: o MSE de cada imagem separadamente (quanto menor, mais parecida a reconstrução está da original).
-# - `psnr`: outra forma de medir a qualidade, muito usada para imagens. É calculada a partir do MSE e medida em decibéis (dB). Quanto maior, melhor. Como referência, acima de 20 dB a imagem já fica bem parecida com a original.
+# - `psnr`: outra forma de medir a qualidade, muito usada para imagens. É calculada a partir do MSE e medida em decibéis (dB). Quanto maior, melhor. Como referência aproximada, nestas imagens uma reconstrução acima de 20 dB já fica bem parecida com a original.
 
 # %%
 def erro_por_imagem(originais, reconstruidas):
@@ -360,7 +360,7 @@ grafico_curvas({f"latente {t}": historicos[t] for t in TAMANHOS_LATENTE},
 # - Nos três modelos o erro cai muito nas primeiras 5 épocas e depois continua caindo devagar até o fim.
 # - As curvas de treino e de validação ficam praticamente uma em cima da outra. A rede não está decorando as imagens de treino.
 # - Quanto menor o espaço latente, maior o erro final: cerca de 0,004 com 100 números, 0,006 com 50 e 0,007 com 30. Com menos números a rede consegue guardar menos detalhes.
-# - A melhor época foi quase a última (49 ou 50), então ainda daria para ganhar um pouco treinando mais. Mas a melhora no final já é bem pequena.
+# - A melhor época foi quase a última (48 ou 49 de 50), então os três modelos ainda não tinham parado de melhorar. A comparação entre eles vale para este limite de 50 épocas; treinando mais, os três erros cairiam um pouco, mas a melhora no final já é bem pequena.
 
 # %% [markdown]
 # ## Erro de reconstrução no conjunto de teste inteiro
@@ -404,7 +404,7 @@ plt.show()
 # - Em todas as 10 imagens o erro aumenta quando o espaço latente diminui (azul menor que laranja, que é menor que vermelho).
 # - As peças com formato simples e cor lisa (calça, vestido, bota) têm o menor erro: a rede só precisa guardar o contorno.
 # - O suéter tem de longe o maior erro (0,010 a 0,017), por causa do texto "Lee" escrito nele. O casaco também, por causa do zíper, dos bolsos e das linhas finas. São detalhes pequenos e únicos de cada peça, difíceis de guardar em poucos números.
-# - O casaco é a imagem que mais piora com o latente menor: o erro sobe de 0,0042 para 0,0147, cerca de 3,5 vezes.
+# - O casaco é a imagem que mais piora com o latente menor: o erro sobe de 0,0044 para 0,0160, cerca de 3,6 vezes.
 
 # %% [markdown]
 # ## Imagens originais e reconstruídas
@@ -421,7 +421,7 @@ mostrar_linhas_de_imagens(linhas, "Imagens originais e reconstruídas", textos=t
 # %% [markdown]
 # O que observar:
 # - Os três modelos reconstroem bem o formato de todas as peças. Dá para reconhecer cada uma sem dificuldade.
-# - O que se perde são os detalhes finos. Com 100 números o texto "Lee" do suéter ainda dá para ler, embora borrado, e as linhas do casaco continuam visíveis; a estampa da camiseta já vira um borrão. Com 50 e 30 números o texto vira uma faixa escura, a estampa some de vez e o casaco fica bem mais borrado.
+# - O que se perde são os detalhes finos. Com 100 números o texto "Lee" do suéter vira uma mancha em que ainda se percebem as letras, e as linhas do casaco continuam visíveis; a estampa da camiseta já vira um borrão. Com 50 e 30 números o texto vira uma faixa escura, a estampa some de vez e o casaco fica bem mais borrado.
 # - As reconstruções são sempre um pouco mais "lisas" e borradas que as originais. Isso é típico de autoencoders treinados com MSE: quando a rede não tem certeza de um detalhe, ela devolve uma média, que fica borrada.
 # - A bolsa perde a alça fina em todos os tamanhos de latente, e o tênis perde parte dos desenhos laterais.
 
@@ -438,9 +438,9 @@ for t in TAMANHOS_LATENTE:
 pd.DataFrame(tabela_overfitting).T.round(5)
 
 # %% [markdown]
-# O erro no treino é só um pouco menor que na validação e no teste (por exemplo, 0,0036 contra 0,0040 com latente 100). A validação e o teste têm praticamente o mesmo erro. Então não há overfitting: os autoencoders reconstroem imagens novas tão bem quanto as de treino.
+# O erro no treino é só um pouco menor que na validação e no teste (por exemplo, 0,0036 contra 0,0040 com latente 100). A validação e o teste têm praticamente o mesmo erro. Então não há overfitting relevante: os autoencoders reconstroem imagens novas quase tão bem quanto as de treino.
 #
-# Isso era esperado, porque o gargalo do espaço latente já funciona como uma proteção: a rede não tem espaço para "decorar" 54 mil imagens em 100 números.
+# O gargalo do espaço latente ajuda nisso: como tudo tem que passar por poucos números, a rede é empurrada a guardar o que as peças têm em comum, e não os detalhes de cada imagem de treino.
 
 # %% [markdown]
 # ---
@@ -458,6 +458,8 @@ mostrar_linhas_de_imagens({"original": imagens_escolhidas, "com ruído": imagens
 
 # %% [markdown]
 # O ruído espalha "chuviscos" por toda a imagem, inclusive no fundo, que antes era preto. Os detalhes pequenos, como a estampa da camiseta e as tiras da sandália, ficam difíceis de ver.
+#
+# Um detalhe sobre o corte entre 0 e 1: um ruído gaussiano de desvio 0,3 teria MSE de 0,3² = 0,09 em relação à imagem limpa. Aqui o MSE medido fica perto de 0,05. A diferença vem do corte: no fundo preto (pixel 0) todo ruído negativo é cortado, e nas partes brancas (pixel 1) todo ruído positivo também. Então o ruído que a rede enfrenta é um pouco menor que 0,3 e não é mais simétrico: no fundo ele só clareia, nunca escurece.
 
 # %% [markdown]
 # ## Arquitetura
@@ -485,6 +487,7 @@ grafico_curvas({"removendo ruído (latente 100)": historico_ruido},
 # O que observar:
 # - O comportamento é parecido com o do item a: o erro cai rápido nas primeiras épocas e depois devagar, e treino e validação andam juntos.
 # - O erro final (cerca de 0,008) é maior que o do autoencoder normal com o mesmo tamanho de latente (0,004). Faz sentido, porque agora a tarefa é mais difícil: além de comprimir, a rede tem que adivinhar os pixels escondidos pelo ruído.
+# - Aqui também a melhor época foi a última (50), então o modelo ainda melhoraria um pouco com mais épocas.
 
 # %% [markdown]
 # ## Imagens com ruído e reconstruídas
@@ -507,7 +510,7 @@ mostrar_linhas_de_imagens(
 # O que observar:
 # - As imagens com ruído (linha do meio) ficam bem difíceis de entender. Na sandália e na bota, quase não dá para ver a peça.
 # - A rede remove praticamente todo o ruído: o fundo volta a ficar preto e liso, e todas as peças voltam a ser reconhecíveis.
-# - O erro de cada imagem cai de cerca de 0,05 para algo entre 0,0025 e 0,017, ou seja, de 3 a 19 vezes menor.
+# - O erro de cada imagem cai de cerca de 0,05 para algo entre 0,0027 e 0,016, ou seja, de 3 a 18 vezes menor.
 # - Como no item a, os detalhes finos se perdem: o texto do suéter vira uma faixa, a estampa da camiseta some e a alça da bolsa desaparece. O ruído escondeu esses detalhes e a rede preenche com o que é mais comum para aquele tipo de peça.
 
 # %% [markdown]
@@ -527,7 +530,38 @@ tabela_ruido.round(4)
 # %% [markdown]
 # Na média das 10 imagens, o MSE cai de 0,052 (com ruído) para 0,0063 (depois da rede), cerca de 8 vezes menor. O PSNR sobe de 12,9 dB para 22,7 dB, uma melhora de quase 10 dB.
 #
-# A melhor reconstrução foi a do vestido (26,0 dB) e a pior foi a do suéter (17,8 dB), de novo por causa do texto escrito nele.
+# A melhor reconstrução foi a do vestido (25,7 dB) e a pior foi a do suéter (18,0 dB), de novo por causa do texto escrito nele.
+
+# %% [markdown]
+# ## Precisava treinar com ruído?
+# O gargalo do autoencoder já joga fora detalhes pequenos, e o ruído é um detalhe pequeno. Então fica a dúvida: o autoencoder do item a (latente 100), que nunca viu ruído, também limparia as imagens? Para responder, passamos as mesmas 10 imagens ruidosas pelos dois modelos.
+
+# %%
+imagens_item_a = reconstruir(modelos[100], imagens_ruidosas)
+mse_item_a = erro_por_imagem(imagens_escolhidas, imagens_item_a)
+
+mostrar_linhas_de_imagens(
+    {"com ruído": imagens_ruidosas, "autoencoder do item a": imagens_item_a, "treinado com ruído": imagens_limpas},
+    "As mesmas imagens ruidosas nos dois autoencoders (latente 100)",
+    textos={"autoencoder do item a": [f"MSE {e:.4f}" for e in mse_item_a], "treinado com ruído": [f"MSE {e:.4f}" for e in mse_limpa]},
+    arquivo="5b_comparacao_item_a.png",
+)
+
+# %%
+tabela_controle = pd.DataFrame({
+    "MSE com ruído": mse_ruidosa,
+    "MSE autoencoder do item a": mse_item_a,
+    "MSE treinado com ruído": mse_limpa,
+}, index=CLASSES)
+tabela_controle.loc["média"] = tabela_controle.mean()
+tabela_controle.round(4)
+
+# %% [markdown]
+# O que observar:
+# - O autoencoder do item a remove uma parte do ruído sozinho: na média das 10 imagens o MSE cai de 0,052 para 0,029, quase pela metade. As peças ficam reconhecíveis, porque o gargalo não tem espaço para guardar cada chuvisco.
+# - Mas o resultado é bem pior que o do autoencoder treinado com ruído (0,0063, mais de 4 vezes menor). Na figura, o fundo não volta a ficar preto: sobram manchas e "fantasmas" em volta das peças, principalmente na sandália, no tênis e na bota.
+# - O motivo é que o autoencoder do item a nunca viu ruído. Ele trata a imagem ruidosa como se fosse uma peça de verdade e tenta reconstruir o ruído também. O autoencoder do item b foi treinado para devolver a imagem limpa, então aprendeu que os chuviscos devem ser jogados fora.
+# - Então treinar com ruído faz diferença. O gargalo ajuda, mas responde por menos da metade da melhora.
 
 # %% [markdown]
 # ## Verificando overfitting e o teste inteiro
@@ -540,6 +574,7 @@ for nome, imagens in {"treino": imagens_treino, "validação": imagens_val, "tes
     ruidosas = adicionar_ruido(imagens)
     linhas_ruido[nome] = {
         "MSE com ruído": erro_por_imagem(imagens, ruidosas).mean(),
+        "MSE autoencoder do item a": erro_por_imagem(imagens, reconstruir(modelos[100], ruidosas)).mean(),
         "MSE depois da rede": erro_por_imagem(imagens, reconstruir(modelo_ruido, ruidosas)).mean(),
     }
 pd.DataFrame(linhas_ruido).T.round(5)
@@ -548,6 +583,8 @@ pd.DataFrame(linhas_ruido).T.round(5)
 # O MSE depois da rede é 0,0077 no treino, 0,0080 na validação e 0,0080 no teste, quase iguais. A rede não decorou as imagens de treino e funciona do mesmo jeito em imagens novas.
 #
 # Sorteamos um ruído novo a cada lote durante o treino. Por isso a rede nunca viu duas vezes a mesma imagem ruidosa, o que dificulta decorar.
+#
+# A coluna do meio repete, no teste inteiro, a comparação com o autoencoder do item a: ele reduz o erro de 0,053 para 0,028, e o autoencoder treinado com ruído chega a 0,008.
 
 # %% [markdown]
 # ---
@@ -555,10 +592,12 @@ pd.DataFrame(linhas_ruido).T.round(5)
 #
 # Item a
 # - Treinamos três autoencoders convolucionais, com espaços latentes de 100, 50 e 30 números.
-# - Quanto maior o espaço latente, melhor a reconstrução. No teste inteiro, o MSE foi de 0,0040, 0,0058 e 0,0074, e o PSNR de 25,5 dB, 23,8 dB e 22,6 dB.
+# - Quanto maior o espaço latente, melhor a reconstrução. No teste inteiro, o MSE foi de 0,0040, 0,0057 e 0,0075, e o PSNR de 25,5 dB, 23,8 dB e 22,5 dB.
 # - Os três modelos guardam bem o formato das peças, mesmo comprimindo 784 pixels em apenas 30 números (menos de 4% do tamanho). O que se perde primeiro são os detalhes finos e únicos: textos, estampas, zíperes e alças.
-# - Não houve overfitting: treino, validação e teste têm praticamente o mesmo erro.
+# - Não houve overfitting relevante: treino, validação e teste têm praticamente o mesmo erro.
 #
 # Item b
 # - O autoencoder treinado com imagens ruidosas aprendeu a remover o ruído. O MSE das 10 imagens caiu de 0,052 para 0,0063 e o PSNR subiu de 12,9 dB para 22,7 dB.
 # - As peças voltam a ficar reconhecíveis e o fundo fica limpo. Os detalhes finos escondidos pelo ruído não são recuperados: a rede os substitui pelo que é mais comum para aquele tipo de peça.
+# - Treinar com ruído é o que faz a diferença: o autoencoder do item a, que nunca viu ruído, só reduz o erro das mesmas imagens para 0,029.
+
