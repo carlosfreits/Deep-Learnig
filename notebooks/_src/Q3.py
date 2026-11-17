@@ -201,7 +201,7 @@ class CNN(nn.Module):
 # - Com otimizador, a rede aprende. Se `aumentar` for verdadeiro, as imagens passam pela data augmentation antes.
 # - Sem otimizador, a rede só é avaliada.
 #
-# Usamos "precisão mista" (autocast): a placa de vídeo faz parte das contas com números menores (16 bits), o que deixa o treino mais rápido e gasta menos memória, sem mudar o resultado.
+# Usamos "precisão mista" (autocast): a placa de vídeo faz parte das contas com números menores (16 bits), o que deixa o treino mais rápido e gasta menos memória, praticamente sem mudar o resultado.
 
 # %%
 def rodar_epoca(modelo, X, y, tamanho_lote, otimizador=None, agendador=None, escalador=None, aumentar=False):
@@ -543,10 +543,10 @@ grafico_curvas(historico_mlp, "MLP: erro e acurácia durante o treino", arquivo=
 
 # %% [markdown]
 # O que observar:
-# - O erro de treino cai o tempo todo, mas o erro de validação para de cair por volta da época 13 e depois começa a subir. É um sinal claro de overfitting: a rede passa a decorar as imagens de treino.
-# - Na acurácia, o treino chega a mais de 80%, enquanto a validação fica parada perto de 58% a 59%.
-# - O early stopping parou o treino na época 37, porque a validação ficou 8 épocas sem melhorar. Voltamos para os pesos da melhor época, a 29 (59,2% na validação).
-# - Mesmo com dropout e BatchNorm, a MLP não passa de cerca de 59%, e trava enquanto o erro de treino ainda está caindo. Para afirmar que o limite é a arquitetura, e não a receita de treino, seria preciso treinar a MLP com a mesma receita da CNN (data augmentation e OneCycle) e mostrar que ela continua parada perto dos 59%. Essa comparação não foi feita aqui.
+# - O erro de treino cai o tempo todo, mas o erro de validação para de cair por volta da época 10 e começa a subir perto da época 20. É um sinal claro de overfitting: a rede passa a decorar as imagens de treino.
+# - Na acurácia, o treino passa de 75% e continua subindo, enquanto a validação fica parada perto de 58%.
+# - O early stopping parou o treino na época 29, porque a validação ficou 8 épocas sem melhorar. Voltamos para os pesos da melhor época, a 21 (58,4% na validação).
+# - Mesmo com dropout e BatchNorm, a MLP não passa de cerca de 58%. Fica a dúvida: o limite é da arquitetura ou do jeito de treinar? A CNN do item b usa data augmentation e OneCycle, e esta MLP não. Respondemos isso no final do notebook, treinando a MLP com a mesma receita da CNN.
 
 # %% [markdown]
 # ## Matriz de confusão no teste
@@ -557,9 +557,9 @@ matriz_mlp = grafico_matriz_confusao(classes_teste, previstos_mlp, "MLP: matriz 
 
 # %% [markdown]
 # O que observar:
-# - A acurácia da MLP no teste foi 58,4%. Acerta bem mais que um chute (10%), mas erra muito.
-# - A maior confusão é entre gato e cachorro: 224 gatos foram classificados como cachorro e 183 cachorros como gato.
-# - Automóvel e caminhão também se confundem bastante (182 automóveis viraram caminhão e 108 caminhões viraram automóvel), e avião é confundido com navio (114), provavelmente por causa do fundo azul.
+# - A acurácia da MLP no teste foi 57,9%. Acerta bem mais que um chute (10%), mas erra muito.
+# - A maior confusão é entre gato e cachorro: 199 gatos foram classificados como cachorro e 194 cachorros como gato.
+# - Automóvel e caminhão também se confundem bastante (149 caminhões viraram automóvel e 138 automóveis viraram caminhão), e avião é confundido com navio (123), provavelmente por causa do fundo azul.
 # - Os animais (pássaro, gato, cervo, cachorro) são as classes mais difíceis. Os erros se espalham por várias colunas, o que mostra que a MLP não está entendendo bem a forma do animal.
 
 # %% [markdown]
@@ -599,13 +599,14 @@ print("Total de pesos treináveis:", sum(p.numel() for p in cnn.parameters()))
 # ## Treinando
 # - Otimizador AdamW com weight decay 0,0005 e agendador OneCycle, com taxa de aprendizado máxima de 0,003.
 # - 40 épocas com lotes de 128 imagens e data augmentation.
-# - Guardamos em arquivo os pesos das épocas 1, 5 e 40, e também os pesos da melhor época (`cnn_final.pt`). A Questão 4 usa os das épocas 1 e 5 e o `cnn_final.pt`, para comparar o começo, o meio e o fim do treino.
+# - Guardamos em arquivo os pesos antes do treino (época 0, ainda com os valores sorteados), os das épocas 1, 5 e 40, e também os pesos da melhor época (`cnn_final.pt`). A Questão 4 usa os das épocas 0, 1 e 5 e o `cnn_final.pt`, para comparar o que a rede tinha antes de aprender com o começo, o meio e o fim do treino.
 #
 # Aqui não usamos early stopping: com o OneCycle a taxa de aprendizado só fica bem pequena nas últimas épocas, e é nelas que a rede costuma dar o último salto de acurácia. Mesmo assim, guardamos os pesos da melhor época na validação.
 
 # %%
 fixar_semente()
 extras = {"media": media.cpu(), "desvio": desvio.cpu()}
+salvar_modelo(cnn, PASTA_MODELOS / "cnn_epoca_00.pt", 0, extras)  # pesos sorteados, antes de qualquer treino
 historico_cnn = treinar(cnn, dados, epocas=40, lr=3e-3, weight_decay=5e-4, one_cycle=True, aumentar=True,
                         salvar_epocas=(1, 5, 40), nome_arquivo="cnn", extras=extras, nome="CNN")
 salvar_modelo(cnn, PASTA_MODELOS / "cnn_final.pt", historico_cnn["melhor_epoca"], extras)
@@ -619,8 +620,8 @@ grafico_curvas(historico_cnn, "CNN: erro e acurácia durante o treino", arquivo=
 # %% [markdown]
 # O que observar:
 # - Treino e validação caem juntos durante quase todo o treino. A curva de validação oscila bastante nas primeiras 15 épocas, por causa da taxa de aprendizado alta no início do OneCycle, e depois fica estável.
-# - No final a taxa de aprendizado fica bem pequena, e as duas curvas se estabilizam. A melhor época foi a 37, com 92,8% de acurácia na validação.
-# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 93%), mas o erro de validação não tem tendência de subir no final: depois das oscilações do começo, ele só cai ou fica estável. Ou seja, a rede aprende mais do que decora.
+# - No final a taxa de aprendizado fica bem pequena, e as duas curvas se estabilizam. A melhor época foi a 38, com 92,4% de acurácia na validação.
+# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 92%), mas o erro de validação não tem tendência de subir no final: depois das oscilações do começo, ele só cai ou fica estável. Ou seja, a rede aprende mais do que decora.
 # - O treino é feito com data augmentation (imagens espelhadas e deslocadas), então a curva de treino é calculada em imagens "mais difíceis" que as de validação.
 
 # %% [markdown]
@@ -632,9 +633,9 @@ matriz_cnn = grafico_matriz_confusao(classes_teste, previstos_cnn, "CNN: matriz 
 
 # %% [markdown]
 # O que observar:
-# - A acurácia da CNN no teste foi 92,0%. A diagonal ficou bem mais escura que a da MLP.
-# - O par mais confundido continua sendo gato e cachorro (82 gatos viraram cachorro e 62 cachorros viraram gato), mas são cerca de 3 vezes menos erros que na MLP.
-# - Os outros erros aparecem entre classes realmente parecidas: caminhão e automóvel (31 e 26), navio e avião (30 e 20), pássaro e cervo ou sapo (cerca de 29 cada).
+# - A acurácia da CNN no teste foi 91,9%. A diagonal ficou bem mais escura que a da MLP.
+# - O par mais confundido continua sendo gato e cachorro (95 gatos viraram cachorro e 58 cachorros viraram gato), mas são menos da metade dos erros da MLP nesse par.
+# - Os outros erros aparecem entre classes realmente parecidas ou com fundos parecidos: caminhão e automóvel (28 e 20), avião e navio (28 e 20), pássaro e avião (29) e gato e sapo (29).
 # - Quase não há confusão entre veículos e animais. A CNN aprendeu a separar bem os dois grandes grupos.
 
 # %% [markdown]
@@ -661,8 +662,8 @@ pd.concat({
 # %% [markdown]
 # Na tabela, a acurácia no treino é medida sem dropout e sem data augmentation, por isso é maior que a da curva.
 #
-# - MLP: 90,0% no treino, mas só 59,2% na validação e 58,4% no teste. São mais de 30 pontos de diferença. A MLP tem overfitting forte: decora as imagens de treino e não generaliza. O early stopping e o dropout limitam o estrago, mas não resolvem.
-# - CNN: 99,3% no treino, 92,8% na validação e 92,0% no teste. A diferença é de cerca de 7 pontos, bem menor. Existe um pouco de overfitting, mas a rede generaliza bem.
+# - MLP: 82,7% no treino, mas só 58,4% na validação e 57,9% no teste. São cerca de 25 pontos de diferença. A MLP tem overfitting forte: decora as imagens de treino e não generaliza. O early stopping e o dropout limitam o estrago, mas não resolvem.
+# - CNN: 99,3% no treino, 92,4% na validação e 91,9% no teste. A diferença é de cerca de 7 pontos, bem menor. Existe um pouco de overfitting, mas a rede generaliza bem.
 # - Nos dois casos, validação e teste ficam muito próximos. Isso mostra que escolher o modelo pela validação foi uma boa estimativa do resultado em imagens novas.
 
 # %% [markdown]
@@ -690,26 +691,59 @@ plt.show()
 # %% [markdown]
 # O que observar:
 # - A CNN ganha da MLP em todas as 10 classes.
-# - As classes mais difíceis são as mesmas nos dois modelos: gato (38,8% na MLP e 82,4% na CNN), pássaro (43,8% e 87,1%) e cachorro (52,5% e 88,6%).
-# - A maior melhora aparece justamente nos animais: gato sobe 44 pontos, pássaro 43 e cervo 43. Para reconhecer um animal é preciso entender formas como orelhas, patas e focinho, e é isso que as convoluções fazem bem.
-# - Os veículos já eram as classes mais fáceis para a MLP, por causa da cor e do fundo. Mesmo assim a CNN sobe todos para mais de 93%.
+# - As classes mais difíceis são as mesmas nos dois modelos: gato (36,9% na MLP e 80,8% na CNN), pássaro (45,6% e 86,3%) e cachorro (45,5% e 88,6%).
+# - A maior melhora aparece justamente nos animais: cervo sobe 44 pontos, gato 44, cachorro 43 e pássaro 41. Para reconhecer um animal é preciso entender formas como orelhas, patas e focinho, e é isso que as convoluções fazem bem.
+# - Os veículos já eram as classes mais fáceis para a MLP, por causa da cor e do fundo. Mesmo assim a CNN sobe todos para mais de 92%.
+
+# %% [markdown]
+# ## A diferença vem da arquitetura ou do jeito de treinar?
+# A comparação acima não é totalmente justa: a CNN foi treinada com data augmentation e OneCycle, e a MLP do item a não. Para separar as duas coisas, treinamos uma segunda MLP, igual à do item a, com exatamente a mesma receita da CNN (40 épocas, data augmentation, OneCycle com taxa máxima de 0,003 e weight decay de 0,0005). Assim a única diferença que sobra entre ela e a CNN é a arquitetura.
+
+# %%
+fixar_semente()
+mlp_receita = MLP().to(device)
+historico_mlp_receita = treinar(mlp_receita, dados, epocas=40, lr=3e-3, weight_decay=5e-4, one_cycle=True,
+                                aumentar=True, nome="MLP (receita da CNN)")
+
+# %%
+grafico_curvas(historico_mlp_receita, "MLP com a receita de treino da CNN", arquivo="3_curvas_mlp_receita.png")
+
+# %%
+previstos_mlp_receita, _ = prever(mlp_receita, X_teste)
+acuracia_mlp_receita = (previstos_mlp_receita == classes_teste).mean()
+
+pd.concat({
+    "MLP (item a)": tabela_overfitting(mlp, conjuntos),
+    "MLP (receita da CNN)": tabela_overfitting(mlp_receita, conjuntos),
+    "CNN": tabela_overfitting(cnn, conjuntos),
+}, axis=1).round(4)
+
+# %% [markdown]
+# O que observar:
+# - Com a receita da CNN, a MLP sobe de 57,9% para 61,0% no teste. A data augmentation e o OneCycle ajudam, mas só cerca de 3 pontos.
+# - O overfitting da MLP desaparece: a acurácia no treino cai de 82,7% para 64,8%, bem perto da validação (60,4%) e do teste (61,0%). Nas curvas, a validação fica até acima do treino, porque o treino é medido em imagens deslocadas e espelhadas e com dropout ligado.
+# - Ou seja, o problema da MLP mudou de tipo. Antes ela decorava o treino. Agora, sem conseguir decorar, ela não consegue nem aprender bem o próprio treino (65%). Falta à arquitetura um jeito de aproveitar a estrutura da imagem.
+# - A CNN, com a mesma receita e menos de um terço dos pesos, chega a 91,9%. Dos 34 pontos de diferença entre a MLP do item a e a CNN, cerca de 3 vêm do jeito de treinar e cerca de 31 vêm da arquitetura.
+# - Um detalhe: a taxa de aprendizado e o weight decay desta receita foram escolhidos para a CNN, não para a MLP. Uma busca feita só para a MLP poderia render mais alguns pontos, mas não os 31 que faltam.
 
 # %% [markdown]
 # ## Resumo
 
 # %%
 pd.DataFrame({
-    "pesos treináveis": [sum(p.numel() for p in mlp.parameters()), sum(p.numel() for p in cnn.parameters())],
-    "épocas treinadas": [len(historico_mlp["erro_treino"]), len(historico_cnn["erro_treino"])],
-    "acurácia no teste": [acuracia_mlp, acuracia_cnn],
-}, index=["MLP", "CNN"])
+    "pesos treináveis": [sum(p.numel() for p in m.parameters()) for m in (mlp, mlp_receita, cnn)],
+    "épocas treinadas": [len(h["erro_treino"]) for h in (historico_mlp, historico_mlp_receita, historico_cnn)],
+    "acurácia no teste": [acuracia_mlp, acuracia_mlp_receita, acuracia_cnn],
+}, index=["MLP (item a)", "MLP (receita da CNN)", "CNN"])
 
 # %% [markdown]
 # # Conclusão
 #
-# - A MLP chegou a 58,4% de acurácia no teste e a CNN chegou a 92,0%, mesmo tendo cerca de 3 vezes menos pesos (1,1 milhão contra 3,8 milhões).
-# - A MLP recebe a imagem "achatada" em uma lista de 3072 números. Ela perde a noção de quais pixels são vizinhos e precisa aprender cada padrão separadamente para cada posição da imagem. Por isso decora o treino (90%) e generaliza mal.
+# - A MLP chegou a 57,9% de acurácia no teste e a CNN chegou a 91,9%, mesmo tendo cerca de 3 vezes menos pesos (1,1 milhão contra 3,8 milhões).
+# - A MLP recebe a imagem "achatada" em uma lista de 3072 números. Ela perde a noção de quais pixels são vizinhos e precisa aprender cada padrão separadamente para cada posição da imagem. Por isso decora o treino (83%) e generaliza mal.
 # - A CNN olha pequenos pedaços da imagem e usa o mesmo filtro em todas as posições. Assim ela reconhece uma borda, uma textura ou uma orelha em qualquer lugar da foto. Juntando isso com BatchNorm, dropout e data augmentation, o overfitting ficou pequeno (99% no treino e 92% no teste).
-# - Ressalva: a CNN também foi treinada com data augmentation e OneCycle, e a MLP não. Os 33,5 pontos de diferença misturam o efeito da arquitetura com o da receita de treino, então não devem ser lidos como efeito puro da arquitetura. A direção do resultado continua valendo: a MLP satura com o erro de treino ainda caindo, o que é limitação dela e não falta de treino.
+# - A diferença vem quase toda da arquitetura. Treinando a MLP com a mesma receita da CNN (data augmentation e OneCycle), ela sobe só para 61,0%: para de decorar o treino, mas continua 31 pontos abaixo da CNN.
 # - Nos dois modelos o erro mais comum é gato com cachorro, que também é difícil para pessoas em imagens de 32x32 pixels.
-# - Para a Q4 salvamos os pesos da CNN nas épocas 1, 5 e 40 e os da melhor época (a 37), para ver o que a rede aprendeu ao longo do treino.
+# - Para a Q4 salvamos os pesos da CNN antes do treino (época 0), nas épocas 1, 5 e 40 e os da melhor época (a 38), para ver o que a rede aprendeu ao longo do treino.
+# - Cada modelo foi treinado uma única vez, com uma semente. Outra semente (ou outra placa de vídeo) muda os números em alguns décimos de ponto, então diferenças desse tamanho não devem ser interpretadas.
+
