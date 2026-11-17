@@ -377,7 +377,7 @@ plt.show()
 
 # %% [markdown]
 # ## Criando a rede
-# Usamos 3 camadas escondidas com 128 neurônios cada e ativação Tanh. A Tanh é uma curva suave, o que combina com uma função suave como a f(x). Com ReLU a rede formaria pedaços de retas, e as ondas ficariam "quebradas".
+# Usamos 3 camadas escondidas com 128 neurônios cada e ativação Tanh. A Tanh é uma curva suave, o que combina com uma função suave como a f(x). Com ReLU a saída da rede é formada por pedaços de retas. Mais abaixo, na seção "Tanh ou ReLU?", treinamos a mesma rede com ReLU para conferir essa escolha.
 
 # %%
 fixar_semente()
@@ -491,8 +491,88 @@ tabela_overfitting(modelo_a, conjuntos_a, normalizador_x, normalizador_y).round(
 # Os erros em treino, validação e teste são praticamente iguais (RMSE de 0,0136, 0,0132 e 0,0138). Então não há overfitting no item a.
 #
 # Isso faz sentido: os dados não têm ruído e os três conjuntos cobrem o mesmo intervalo de 0 a 10, então aprender bem o treino é o mesmo que aprender bem a função.
-#
-# Um cuidado: a rede só aprendeu a função entre 0 e 10. Se pedirmos f(12), por exemplo, ela vai errar bastante, porque nunca viu nada fora desse intervalo.
+
+# %% [markdown]
+# ## Fora do intervalo de treino
+# A rede só viu valores de x entre 0 e 10. Para ver o que acontece fora desse intervalo, pedimos a previsão até x = 12.
+
+# %%
+x_fora = np.linspace(0, 12, 1200).reshape(-1, 1)
+y_fora_previsto = prever(modelo_a, x_fora, normalizador_x, normalizador_y)
+depois_de_10 = x_fora[:, 0] > 10
+
+plt.figure(figsize=(10, 4))
+plt.plot(x_fora, f(x_fora), color="black", linewidth=2, label="f(x) real")
+plt.plot(x_fora, y_fora_previsto, "r--", label="aproximada pela rede")
+plt.axvspan(10, 12, color="gray", alpha=0.15, label="fora do intervalo de treino")
+plt.xlabel("x")
+plt.ylabel("f(x)")
+plt.title("A rede fora do intervalo em que foi treinada")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.savefig(PASTA_FIGURAS / "1a_extrapolacao.png", bbox_inches="tight")
+plt.show()
+
+pd.DataFrame({
+    "x entre 0 e 10": calcular_metricas(f(x_fora[~depois_de_10]), y_fora_previsto[~depois_de_10]),
+    "x entre 10 e 12": calcular_metricas(f(x_fora[depois_de_10]), y_fora_previsto[depois_de_10]),
+}).T[["MAE", "RMSE"]].round(3)
+
+# %% [markdown]
+# O que observar:
+# - Até x = 10 a curva da rede fica em cima da real, como antes.
+# - Logo depois de x = 10 a rede para de acompanhar a função: a previsão fica praticamente reta, perto de 58, enquanto a função real continua subindo e ondulando até 67. O erro médio (MAE) passa de 0,012 dentro do intervalo para 3,6 fora dele, cerca de 300 vezes maior.
+# - Isso acontece porque a rede não aprendeu a fórmula de f(x). Ela aprendeu a ligar os valores de x que viu aos valores de f(x) correspondentes. Fora dessa região os neurônios com Tanh "saturam" (a Tanh fica presa perto de 1 ou de -1) e a saída deixa de mudar.
+# - A conclusão é que uma MLP interpola bem (pontos novos dentro da região de treino), mas não extrapola (pontos fora dela).
+
+# %% [markdown]
+# ## Tanh ou ReLU?
+# Na hora de criar a rede escolhemos a Tanh. Para conferir essa escolha, treinamos a mesma rede (3 camadas de 128 neurônios, mesma semente e mesmo jeito de treinar) trocando só a ativação por ReLU.
+
+# %%
+fixar_semente()
+modelo_relu = MLP(entradas=1, camadas=[128, 128, 128], ativacao=nn.ReLU).to(device)
+historico_relu = treinar(modelo_relu, loader_treino, loader_val, epocas=2000, lr=3e-3,
+                         paciencia=300, reduzir_lr=True, nome="Item a (ReLU)")
+
+# %%
+y_linha_relu = prever(modelo_relu, x_linha, normalizador_x, normalizador_y)
+
+fig, (esquerda, direita) = plt.subplots(1, 2, figsize=(13, 4.5))
+esquerda.plot(x_linha, f(x_linha) - y_linha_previsto, label="Tanh")
+esquerda.plot(x_linha, f(x_linha) - y_linha_relu, alpha=0.8, label="ReLU")
+esquerda.axhline(0, color="black", linewidth=0.8)
+esquerda.set_xlabel("x")
+esquerda.set_ylabel("erro (real menos previsto)")
+esquerda.set_title("Erro em cada ponto")
+esquerda.legend()
+esquerda.grid(alpha=0.3)
+trecho = (x_linha[:, 0] >= 4.0) & (x_linha[:, 0] <= 4.6)
+direita.plot(x_linha[trecho], f(x_linha[trecho]), color="black", linewidth=2, label="f(x) real")
+direita.plot(x_linha[trecho], y_linha_previsto[trecho], "--", label="Tanh")
+direita.plot(x_linha[trecho], y_linha_relu[trecho], "--", label="ReLU")
+direita.set_xlabel("x")
+direita.set_ylabel("f(x)")
+direita.set_title("Um trecho ampliado da curva")
+direita.legend()
+direita.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig(PASTA_FIGURAS / "1a_tanh_vs_relu.png", bbox_inches="tight")
+plt.show()
+
+pd.DataFrame({
+    "Tanh": calcular_metricas(y_teste, y_previsto_teste),
+    "ReLU": calcular_metricas(y_teste, prever(modelo_relu, x_teste, normalizador_x, normalizador_y)),
+}).T.round(5)
+
+# %% [markdown]
+# O que observar:
+# - As duas redes aprendem a função muito bem. No teste, o RMSE é 0,0138 com Tanh e 0,0194 com ReLU. A Tanh foi melhor, com um erro cerca de 30% menor, mas a ReLU também resolveria o problema.
+# - A diferença aparece no formato do erro (gráfico da esquerda). Com Tanh o erro é uma ondulação suave. Com ReLU ele é cheio de picos: a saída de uma rede ReLU é feita de pedaços de reta, e os picos aparecem nos pontos de emenda.
+# - No trecho ampliado (à direita) as duas curvas ficam em cima da real. Não dá para ver "quinas" na curva da ReLU: com 3 camadas de 128 neurônios os pedaços de reta são tantos e tão pequenos que a curva parece lisa.
+# - Ou seja, a ideia de que a ReLU deixaria as ondas "quebradas" não se confirma para uma rede deste tamanho. O que se confirma é uma vantagem pequena da Tanh nesta função suave.
+# - Nos dois casos o maior erro fica em x = 0, a borda do intervalo.
+# - Esta comparação usa uma única semente, então a diferença de 30% é uma indicação e não uma prova.
 
 # %% [markdown]
 # ---
@@ -673,8 +753,9 @@ grafico_curvas(historico_b, "Item b: erro durante o treino", arquivo="1b_curvas.
 # %% [markdown]
 # O que observar:
 # - A validação atinge o menor erro bem cedo, na época 21. Depois disso ela sobe devagar, sinal de que a rede começaria a decorar o treino. O early stopping parou o treino na época 121 e voltou para os pesos da época 21.
-# - A curva de validação fica abaixo da de treino. Parece estranho, mas é efeito do dropout: no treino, 20% dos neurônios são desligados, o que aumenta o erro de treino. Na validação a rede usa todos os neurônios.
-# - A curva de treino é mais "tremida" pelo mesmo motivo: a cada lote, neurônios diferentes são desligados.
+# - A curva de validação fica abaixo da de treino no começo. Parece estranho, e tem dois motivos. O primeiro é o dropout: no treino, 20% dos neurônios são desligados, o que aumenta o erro de treino, e na validação a rede usa todos os neurônios. O segundo é que os 66 pacientes que caíram na validação são um pouco mais "fáceis" que os de treino: na tabela da seção de overfitting, em que os dois conjuntos são medidos do mesmo jeito (sem dropout), o erro da validação continua menor que o do treino.
+# - A curva de treino é mais "tremida" por causa do dropout: a cada lote, neurônios diferentes são desligados.
+# - Com só 66 pacientes, a curva de validação também depende da sorte da divisão. Por isso, mais abaixo, repetimos tudo com validação cruzada.
 
 # %% [markdown]
 # ## Métricas no conjunto de teste
@@ -736,11 +817,13 @@ tabela_overfitting(modelo_b, conjuntos_b, normalizador_X, normalizador_y).round(
 # %% [markdown]
 # O RMSE fica em 52,7 no treino, 49,5 na validação e 56,0 no teste. A diferença entre treino e teste é pequena (cerca de 3 pontos), então a rede não decorou o treino.
 #
+# A validação tem o menor erro dos três. Como aqui os três conjuntos são medidos do mesmo jeito, isso não é efeito do dropout: é a sorte da divisão (os 66 pacientes da validação são mais fáceis) somada ao fato de que escolhemos a época justamente pelo menor erro nela.
+#
 # A rede tem 897 pesos e o treino tem 309 pacientes. Mesmo assim, com dropout, weight decay e early stopping, ela ficou com um erro de treino parecido com o de dados novos.
 
 # %% [markdown]
 # ### Como seria uma rede com overfitting
-# Para mostrar que o dropout, o weight decay e o early stopping estão fazendo diferença, treinamos uma rede maior (128, 64 e 32 neurônios) sem nenhuma dessas proteções, por 1000 épocas, e ficamos com os pesos da última época.
+# Para mostrar o que acontece sem os cuidados que tomamos, treinamos uma rede maior (128, 64 e 32 neurônios) sem dropout, sem weight decay e sem early stopping, por 1000 épocas, e ficamos com os pesos da última época.
 
 # %%
 fixar_semente()
@@ -754,16 +837,16 @@ grafico_curvas(historico_sem_protecao, "Rede sem dropout, weight decay e early s
 # %% [markdown]
 # Este é o overfitting clássico:
 # - O erro de treino cai até quase zero: a rede decorou a progressão de cada um dos 309 pacientes.
-# - O erro de validação, ao contrário, atinge o menor valor (0,38) na época 4, depois sobe para cerca de 0,65 e fica lá.
+# - O erro de validação, ao contrário, atinge o menor valor (0,38) na época 4, depois sobe até cerca de 0,72 e termina perto de 0,65.
 # - A linha pontilhada mostra que a melhor época foi a 4, mas essa rede usa os pesos da época 1000.
 
 # %%
 tabela_overfitting(modelo_sem_protecao, conjuntos_b, normalizador_X, normalizador_y).round(2)
 
 # %% [markdown]
-# Nos números, o RMSE de treino é só 0,17, mas no teste ele vai para 71,4 (contra 56,0 da nossa rede) e o R² cai para 0,10. Ou seja, a rede ficou pior que a nossa justamente nos pacientes que nunca viu.
+# Nos números, o RMSE de treino é só 1,44, mas no teste ele vai para 70,9 (contra 56,0 da nossa rede) e o R² cai para 0,12. Ou seja, a rede ficou pior que a nossa justamente nos pacientes que nunca viu.
 #
-# Isso mostra que as proteções que usamos (rede menor, dropout, weight decay e early stopping) estão fazendo diferença.
+# Um cuidado na leitura: esta rede difere da nossa em quatro coisas ao mesmo tempo (é maior, não tem dropout, não tem weight decay e não usa early stopping). O experimento mostra que o conjunto desses cuidados faz diferença, mas não diz quanto vem de cada um. Pela curva, o early stopping sozinho já resolveria boa parte: parando na época 4, o erro de validação desta mesma rede seria 0,38, parecido com o da nossa (0,40).
 
 # %% [markdown]
 # ### Validação cruzada
@@ -793,9 +876,12 @@ tabela_resultados.groupby("modelo")[["MAE", "MSE", "RMSE", "R²"]].agg(["mean", 
 # Item a
 # - A MLP aprendeu a função f(x) com RMSE de 0,014 no teste. As curvas real e aproximada ficam uma em cima da outra.
 # - Não houve overfitting: treino, validação e teste têm o mesmo erro.
+# - A rede só vale dentro do intervalo em que foi treinada. Entre x = 10 e x = 12 a previsão fica reta e o erro médio sobe de 0,012 para 3,6.
+# - Trocando a Tanh por ReLU a rede também aprende a função (RMSE de 0,019). A Tanh foi um pouco melhor e deixa um erro mais suave, mas a escolha da ativação não foi decisiva.
 #
 # Item b
 # - A MLP teve RMSE de 56,0 e MAE de 46,0 no teste (R² de 0,45). Em média, a previsão erra cerca de 46 pontos numa escala que vai de 25 a 346.
 # - Esse resultado é igual ao de uma regressão linear. A relação entre os atributos e a progressão é quase linear e tem muito ruído, porque a doença depende de muitos fatores que não estão nesses 10 atributos. Com só 442 pacientes não há o que a rede aprender além do que a regressão linear já pega.
-# - O experimento sem proteção mostrou que uma rede maior decora os pacientes de treino e piora no teste (RMSE de 71,4). Por isso usamos uma rede pequena com dropout, weight decay e early stopping.
+# - O experimento sem proteção mostrou que uma rede maior, sem regularização e sem early stopping, decora os pacientes de treino e piora no teste (RMSE de 70,9). Por isso usamos uma rede pequena com dropout, weight decay e early stopping.
 # - Para melhorar de verdade seria preciso ter mais pacientes ou mais informações sobre eles, e não uma rede maior.
+
