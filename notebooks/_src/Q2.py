@@ -525,7 +525,7 @@ vif.round(1)
 #
 # Um cuidado: o VIF vem da regressão linear, onde colunas redundantes atrapalham de verdade. Uma MLP costuma conviver bem com isso. Então, mais adiante (na seção de balanceamento), conferimos se remover a densidade muda o resultado da rede.
 #
-# Um detalhe: o VIF foi calculado com a base inteira, antes de separar o teste. Como ele só olha a relação entre os atributos (e não a nota), e a densidade está muito acima do limite, a decisão seria a mesma usando só o treino.
+# Obs.: o VIF foi calculado com a base inteira, antes de separar o teste. Como ele só olha a relação entre os atributos (e não a nota), e a densidade está muito acima do limite, a decisão seria a mesma usando só o treino.
 
 # %%
 densidade = vinhos["density"].values  # guardada para um teste mais adiante
@@ -682,7 +682,7 @@ plt.show()
 # - As diferenças de F1 são pequenas (de 0,540 a 0,603) para uma validação com só 35 vinhos baixos. Antes de escolher, conferimos se a ordem se mantém com outras divisões dos dados.
 
 # %% [markdown]
-# ## Conferindo a escolha com validação cruzada
+# ## Validação cruzada das estratégias de balanceamento
 # Na tabela acima os valores de F1 macro das quatro estratégias são próximos, e a validação tem só 35 vinhos de qualidade baixa: acertar ou errar 2 ou 3 deles já muda a ordem. Para não escolher a estratégia "por sorte", repetimos a comparação com validação cruzada de 5 partes (função `validacao_cruzada`), usando os vinhos de treino e de validação juntos. O teste continua de fora.
 
 # %%
@@ -700,14 +700,14 @@ tabela_cruzada.round(3)
 # %% [markdown]
 # O que observar:
 # - Os pesos suavizados continuam na frente: F1 macro médio de 0,595, contra 0,559 do SMOTE, 0,546 dos pesos completos e 0,540 sem balanceamento.
-# - Mais importante que a média: os pesos suavizados têm o maior F1 em cada uma das 5 partes. A vantagem não depende de uma divisão específica dos dados.
+# - Além disso, os pesos suavizados têm o maior F1 em cada uma das 5 partes. A vantagem não depende de uma divisão específica dos dados.
 # - A variação de uma parte para outra é de cerca de 0,03 em uma mesma estratégia. Então a vantagem dos pesos suavizados sobre a segunda colocada (0,036) é real, mas não é grande. Já as outras três estratégias ficam a menos de 0,02 uma da outra, dentro dessa variação: entre elas não dá para dizer qual é melhor.
 # - O valor de 0,603 que vimos na validação única fica dentro do que a validação cruzada mostra (de 0,561 a 0,628).
 #
 # Escolhemos então a estratégia com o maior F1 macro médio na validação cruzada: os pesos suavizados.
 
 # %% [markdown]
-# ## A densidade faz falta?
+# ## Teste com e sem a densidade
 # Removemos a densidade por causa do VIF. Para conferir se isso prejudica a rede, repetimos a validação cruzada da estratégia escolhida colocando a densidade de volta como 12º atributo.
 
 # %%
@@ -769,7 +769,7 @@ grafico_curvas(historico_final, f"Treino com a estratégia: {melhor_estrategia}"
 # - No gráfico da direita, o F1 da validação para de melhorar por volta da época 30 (0,603), enquanto o F1 de treino continua subindo até cerca de 0,65.
 # - O early stopping guardou os pesos da época 30 e parou o treino na época 70. Assim a rede final é a de antes do overfitting.
 # - As curvas da validação são mais "tremidas" porque a classe baixa tem só 35 vinhos na validação: acertar ou errar 2 ou 3 deles já muda bastante o F1.
-# - Um efeito disso: a época 30 é um pico de uma curva tremida. Escolher o ponto mais alto de uma curva assim tende a dar um valor um pouco acima do que a rede realmente vale. É um dos motivos de o F1 no teste sair menor, como veremos adiante.
+# - Como a curva oscila, a época 30 é um pico de uma curva tremida. Escolher o ponto mais alto de uma curva assim tende a dar um valor um pouco acima do que a rede realmente vale. É um dos motivos de o F1 no teste sair menor, como veremos adiante.
 
 # %% [markdown]
 # ## Matriz de confusão no teste
@@ -804,7 +804,7 @@ print(classification_report(y_teste, previstos_teste, target_names=CLASSES, digi
 # - F1 macro de 0,531. A classe média tem F1 de 0,82, a alta 0,49 e a baixa só 0,29.
 # - A precisão da classe baixa é de 0,25: de cada 4 vinhos que a rede chama de baixo, só 1 realmente é. Isso acontece porque, para encontrar vinhos baixos, a rede acaba marcando também vinhos médios parecidos com eles, e como existem muito mais médios do que baixos, esses alarmes falsos são maioria.
 # - O F1 macro do teste (0,531) ficou abaixo do da validação (0,603). Isso tem dois motivos:
-#   - a validação foi usada para escolher a melhor época, e os vinhos dela também entraram na validação cruzada que escolheu a estratégia de balanceamento. Escolhendo pelo melhor resultado na validação, esse resultado tende a ficar um pouco acima do real. O teste, que não participou de nenhuma escolha, mostra o valor mais honesto;
+#   - a validação foi usada para escolher a melhor época, e os vinhos dela também entraram na validação cruzada que escolheu a estratégia de balanceamento. Escolhendo pelo melhor resultado na validação, esse resultado tende a ficar um pouco acima do real. O teste, que não participou de nenhuma escolha, mostra o valor mais confiável;
 #   - com só 36 vinhos baixos no teste, poucos acertos a mais ou a menos mudam muito o F1.
 
 # %% [markdown]

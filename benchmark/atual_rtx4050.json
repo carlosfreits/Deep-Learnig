@@ -1,5 +1,5 @@
 {
-  "ambiente": "RTX 4050 Laptop (6 GB), Python 3.13, PyTorch 2.11 + CUDA 12.8 — notebooks com as correções",
+  "ambiente": "RTX 4050 Laptop (6 GB), Python 3.13, PyTorch 2.11 + CUDA 12.8, notebooks com as correções",
   "metricas": {
     "Q1a | MAE (teste)": 0.01141,
     "Q1a | RMSE (teste)": 0.01384,

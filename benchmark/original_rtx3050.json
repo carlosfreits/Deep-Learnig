@@ -1,5 +1,5 @@
 {
-  "ambiente": "RTX 3050 (4 GB), Python 3.14, PyTorch 2.11 + CUDA 12.8 — notebooks do commit 013a455",
+  "ambiente": "RTX 3050 (4 GB), Python 3.14, PyTorch 2.11 + CUDA 12.8, notebooks do commit 013a455",
   "metricas": {
     "Q1a | MAE (teste)": 0.01141,
     "Q1a | RMSE (teste)": 0.01384,

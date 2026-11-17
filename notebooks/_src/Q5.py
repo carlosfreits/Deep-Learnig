@@ -459,7 +459,7 @@ mostrar_linhas_de_imagens({"original": imagens_escolhidas, "com ruído": imagens
 # %% [markdown]
 # O ruído espalha "chuviscos" por toda a imagem, inclusive no fundo, que antes era preto. Os detalhes pequenos, como a estampa da camiseta e as tiras da sandália, ficam difíceis de ver.
 #
-# Um detalhe sobre o corte entre 0 e 1: um ruído gaussiano de desvio 0,3 teria MSE de 0,3² = 0,09 em relação à imagem limpa. Aqui o MSE medido fica perto de 0,05. A diferença vem do corte: no fundo preto (pixel 0) todo ruído negativo é cortado, e nas partes brancas (pixel 1) todo ruído positivo também. Então o ruído que a rede enfrenta é um pouco menor que 0,3 e não é mais simétrico: no fundo ele só clareia, nunca escurece.
+# Sobre o corte entre 0 e 1: um ruído gaussiano de desvio 0,3 teria MSE de 0,3² = 0,09 em relação à imagem limpa. Aqui o MSE medido fica perto de 0,05. A diferença vem do corte: no fundo preto (pixel 0) todo ruído negativo é cortado, e nas partes brancas (pixel 1) todo ruído positivo também. Então o ruído que a rede enfrenta é um pouco menor que 0,3 e não é mais simétrico: no fundo ele só clareia, nunca escurece.
 
 # %% [markdown]
 # ## Arquitetura
@@ -533,8 +533,8 @@ tabela_ruido.round(4)
 # A melhor reconstrução foi a do vestido (25,7 dB) e a pior foi a do suéter (18,0 dB), de novo por causa do texto escrito nele.
 
 # %% [markdown]
-# ## Precisava treinar com ruído?
-# O gargalo do autoencoder já joga fora detalhes pequenos, e o ruído é um detalhe pequeno. Então fica a dúvida: o autoencoder do item a (latente 100), que nunca viu ruído, também limparia as imagens? Para responder, passamos as mesmas 10 imagens ruidosas pelos dois modelos.
+# ## Comparação com o autoencoder do item a
+# O gargalo do autoencoder já joga fora detalhes pequenos, e o ruído é um detalhe pequeno. Para ver se o autoencoder do item a (latente 100), que nunca viu ruído, também limparia as imagens, passamos as mesmas 10 imagens ruidosas pelos dois modelos.
 
 # %%
 imagens_item_a = reconstruir(modelos[100], imagens_ruidosas)

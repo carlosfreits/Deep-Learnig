@@ -2,8 +2,8 @@
 
 Compara as métricas principais de duas execuções dos notebooks. Os valores são lidos das saídas gravadas nos próprios notebooks pelo script [`notebooks/_src/benchmark.py`](../notebooks/_src/benchmark.py).
 
-- **Original:** RTX 3050 (4 GB), Python 3.14, PyTorch 2.11 + CUDA 12.8 — notebooks do commit 013a455
-- **Atual:** RTX 4050 Laptop (6 GB), Python 3.13, PyTorch 2.11 + CUDA 12.8 — notebooks com as correções
+- **Original:** RTX 3050 (4 GB), Python 3.14, PyTorch 2.11 + CUDA 12.8, notebooks do commit 013a455
+- **Atual:** RTX 4050 Laptop (6 GB), Python 3.13, PyTorch 2.11 + CUDA 12.8, notebooks com as correções
 
 A coluna "variação" é (atual − original) / original. Métricas que só existem em uma das execuções aparecem com um traço na outra.
 

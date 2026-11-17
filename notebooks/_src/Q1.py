@@ -526,7 +526,7 @@ pd.DataFrame({
 # - A conclusão é que uma MLP interpola bem (pontos novos dentro da região de treino), mas não extrapola (pontos fora dela).
 
 # %% [markdown]
-# ## Tanh ou ReLU?
+# ## Comparação entre Tanh e ReLU
 # Na hora de criar a rede escolhemos a Tanh. Para conferir essa escolha, treinamos a mesma rede (3 camadas de 128 neurônios, mesma semente e mesmo jeito de treinar) trocando só a ativação por ReLU.
 
 # %%
@@ -570,7 +570,7 @@ pd.DataFrame({
 # - As duas redes aprendem a função muito bem. No teste, o RMSE é 0,0138 com Tanh e 0,0194 com ReLU. A Tanh foi melhor, com um erro cerca de 30% menor, mas a ReLU também resolveria o problema.
 # - A diferença aparece no formato do erro (gráfico da esquerda). Com Tanh o erro é uma ondulação suave. Com ReLU ele é cheio de picos: a saída de uma rede ReLU é feita de pedaços de reta, e os picos aparecem nos pontos de emenda.
 # - No trecho ampliado (à direita) as duas curvas ficam em cima da real. Não dá para ver "quinas" na curva da ReLU: com 3 camadas de 128 neurônios os pedaços de reta são tantos e tão pequenos que a curva parece lisa.
-# - Ou seja, a ideia de que a ReLU deixaria as ondas "quebradas" não se confirma para uma rede deste tamanho. O que se confirma é uma vantagem pequena da Tanh nesta função suave.
+# - A ideia de que a ReLU deixaria as ondas "quebradas" não se confirma para uma rede deste tamanho. O que se confirma é uma vantagem pequena da Tanh nesta função suave.
 # - Nos dois casos o maior erro fica em x = 0, a borda do intervalo.
 # - Esta comparação usa uma única semente, então a diferença de 30% é uma indicação e não uma prova.
 

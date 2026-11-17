@@ -546,7 +546,7 @@ grafico_curvas(historico_mlp, "MLP: erro e acurácia durante o treino", arquivo=
 # - O erro de treino cai o tempo todo, mas o erro de validação para de cair por volta da época 10 e começa a subir perto da época 20. É um sinal claro de overfitting: a rede passa a decorar as imagens de treino.
 # - Na acurácia, o treino passa de 75% e continua subindo, enquanto a validação fica parada perto de 58%.
 # - O early stopping parou o treino na época 29, porque a validação ficou 8 épocas sem melhorar. Voltamos para os pesos da melhor época, a 21 (58,4% na validação).
-# - Mesmo com dropout e BatchNorm, a MLP não passa de cerca de 58%. Fica a dúvida: o limite é da arquitetura ou do jeito de treinar? A CNN do item b usa data augmentation e OneCycle, e esta MLP não. Respondemos isso no final do notebook, treinando a MLP com a mesma receita da CNN.
+# - Mesmo com dropout e BatchNorm, a MLP não passa de cerca de 58%. A CNN do item b usa data augmentation e OneCycle, e esta MLP não. No final do notebook treinamos a MLP com a mesma receita da CNN para ver se o limite vem da arquitetura ou do treino.
 
 # %% [markdown]
 # ## Matriz de confusão no teste
@@ -621,7 +621,7 @@ grafico_curvas(historico_cnn, "CNN: erro e acurácia durante o treino", arquivo=
 # O que observar:
 # - Treino e validação caem juntos durante quase todo o treino. A curva de validação oscila bastante nas primeiras 15 épocas, por causa da taxa de aprendizado alta no início do OneCycle, e depois fica estável.
 # - No final a taxa de aprendizado fica bem pequena, e as duas curvas se estabilizam. A melhor época foi a 38, com 92,4% de acurácia na validação.
-# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 92%), mas o erro de validação não tem tendência de subir no final: depois das oscilações do começo, ele só cai ou fica estável. Ou seja, a rede aprende mais do que decora.
+# - Existe uma diferença entre treino (cerca de 97%) e validação (cerca de 92%), mas o erro de validação não tem tendência de subir no final: depois das oscilações do começo, ele só cai ou fica estável. Então a rede está generalizando, e não só decorando.
 # - O treino é feito com data augmentation (imagens espelhadas e deslocadas), então a curva de treino é calculada em imagens "mais difíceis" que as de validação.
 
 # %% [markdown]
@@ -696,7 +696,7 @@ plt.show()
 # - Os veículos já eram as classes mais fáceis para a MLP, por causa da cor e do fundo. Mesmo assim a CNN sobe todos para mais de 92%.
 
 # %% [markdown]
-# ## A diferença vem da arquitetura ou do jeito de treinar?
+# ## MLP com a mesma receita de treino da CNN
 # A comparação acima não é totalmente justa: a CNN foi treinada com data augmentation e OneCycle, e a MLP do item a não. Para separar as duas coisas, treinamos uma segunda MLP, igual à do item a, com exatamente a mesma receita da CNN (40 épocas, data augmentation, OneCycle com taxa máxima de 0,003 e weight decay de 0,0005). Assim a única diferença que sobra entre ela e a CNN é a arquitetura.
 
 # %%
@@ -722,9 +722,9 @@ pd.concat({
 # O que observar:
 # - Com a receita da CNN, a MLP sobe de 57,9% para 61,0% no teste. A data augmentation e o OneCycle ajudam, mas só cerca de 3 pontos.
 # - O overfitting da MLP desaparece: a acurácia no treino cai de 82,7% para 64,8%, bem perto da validação (60,4%) e do teste (61,0%). Nas curvas, a validação fica até acima do treino, porque o treino é medido em imagens deslocadas e espelhadas e com dropout ligado.
-# - Ou seja, o problema da MLP mudou de tipo. Antes ela decorava o treino. Agora, sem conseguir decorar, ela não consegue nem aprender bem o próprio treino (65%). Falta à arquitetura um jeito de aproveitar a estrutura da imagem.
+# - Antes a MLP decorava o treino. Agora ela não decora, mas também não consegue aprender bem o próprio treino (65%). O que falta é um jeito de aproveitar a estrutura da imagem, e isso depende da arquitetura.
 # - A CNN, com a mesma receita e menos de um terço dos pesos, chega a 91,9%. Dos 34 pontos de diferença entre a MLP do item a e a CNN, cerca de 3 vêm do jeito de treinar e cerca de 31 vêm da arquitetura.
-# - Um detalhe: a taxa de aprendizado e o weight decay desta receita foram escolhidos para a CNN, não para a MLP. Uma busca feita só para a MLP poderia render mais alguns pontos, mas não os 31 que faltam.
+# - Obs.: a taxa de aprendizado e o weight decay desta receita foram escolhidos para a CNN, não para a MLP. Uma busca feita só para a MLP poderia render mais alguns pontos, mas não os 31 que faltam.
 
 # %% [markdown]
 # ## Resumo
